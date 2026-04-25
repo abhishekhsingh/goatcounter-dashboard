@@ -1,0 +1,1738 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GoatCounter Dashboard</title>
+  <meta name="description" content="A modern, beautiful, open-source dashboard for GoatCounter analytics." />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%90%90%3C/text%3E%3C/svg%3E" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+  <style>
+    /* ====== THEME TOKENS ====== */
+    :root[data-theme="dark"] {
+      --bg:            #0f172a;
+      --bg-surface:    #1e293b;
+      --bg-surface-2:  #334155;
+      --border:        #475569;
+      --text:          #e2e8f0;
+      --text-secondary:#94a3b8;
+      --text-muted:    #64748b;
+      --accent:        #14b8a6;
+      --accent-hover:  #2dd4bf;
+      --accent-dim:    rgba(20, 184, 166, 0.15);
+      --success:       #22c55e;
+      --danger:        #ef4444;
+      --chart-1:       #14b8a6;
+      --chart-2:       #6366f1;
+      --chart-3:       #f59e0b;
+      --chart-4:       #ec4899;
+      --chart-5:       #8b5cf6;
+      --chart-6:       #06b6d4;
+      --shadow:        0 1px 2px rgba(0,0,0,0.3), 0 4px 12px rgba(0,0,0,0.2);
+      --shadow-lg:     0 8px 30px rgba(0,0,0,0.4);
+      --skeleton-base: #1e293b;
+      --skeleton-shine: #334155;
+    }
+
+    :root[data-theme="light"] {
+      --bg:            #f8fafc;
+      --bg-surface:    #ffffff;
+      --bg-surface-2:  #f1f5f9;
+      --border:        #e2e8f0;
+      --text:          #0f172a;
+      --text-secondary:#475569;
+      --text-muted:    #94a3b8;
+      --accent:        #0d9488;
+      --accent-hover:  #14b8a6;
+      --accent-dim:    rgba(13, 148, 136, 0.10);
+      --success:       #16a34a;
+      --danger:        #dc2626;
+      --chart-1:       #0d9488;
+      --chart-2:       #4f46e5;
+      --chart-3:       #d97706;
+      --chart-4:       #db2777;
+      --chart-5:       #7c3aed;
+      --chart-6:       #0891b2;
+      --shadow:        0 1px 2px rgba(15,23,42,0.06), 0 4px 12px rgba(15,23,42,0.04);
+      --shadow-lg:     0 8px 30px rgba(15,23,42,0.08);
+      --skeleton-base: #e2e8f0;
+      --skeleton-shine: #f1f5f9;
+    }
+
+    /* ====== RESET / BASE ====== */
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    html { color-scheme: dark; }
+    html[data-theme="light"] { color-scheme: light; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      transition: background-color 0.2s ease, color 0.2s ease;
+    }
+
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { color: var(--accent-hover); text-decoration: underline; }
+
+    button {
+      font-family: inherit;
+      font-size: inherit;
+      cursor: pointer;
+      border: none;
+      background: none;
+      color: inherit;
+    }
+    button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+      border-radius: 4px;
+    }
+
+    input, select {
+      font-family: inherit;
+      font-size: inherit;
+      color: var(--text);
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+    input:focus, select:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-dim);
+      outline: none;
+    }
+
+    /* ====== LAYOUT ====== */
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    @media (max-width: 768px) {
+      .container { padding: 16px; }
+    }
+
+    /* ====== CONNECT SCREEN ====== */
+    .connect-wrap {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background:
+        radial-gradient(circle at 20% 0%, var(--accent-dim) 0%, transparent 40%),
+        radial-gradient(circle at 80% 100%, var(--accent-dim) 0%, transparent 40%),
+        var(--bg);
+    }
+
+    .connect-card {
+      width: 100%;
+      max-width: 460px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 40px;
+      box-shadow: var(--shadow-lg);
+      animation: fadeUp 0.5s ease;
+    }
+
+    .connect-logo {
+      font-size: 3rem;
+      text-align: center;
+      margin-bottom: 8px;
+      animation: bob 3s ease-in-out infinite;
+    }
+    @keyframes bob {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-6px); }
+    }
+
+    .connect-title {
+      font-size: 1.5rem;
+      font-weight: 700;
+      text-align: center;
+      margin: 0 0 6px 0;
+      letter-spacing: -0.02em;
+    }
+    .connect-subtitle {
+      color: var(--text-secondary);
+      text-align: center;
+      margin: 0 0 28px 0;
+      font-size: 0.9rem;
+    }
+
+    .field { margin-bottom: 16px; }
+    .field-label {
+      display: block;
+      font-size: 0.8rem;
+      font-weight: 500;
+      color: var(--text-secondary);
+      margin-bottom: 6px;
+    }
+    .field input {
+      display: block;
+      width: 100%;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 10px 16px;
+      border-radius: 8px;
+      font-weight: 500;
+      transition: all 0.15s ease;
+    }
+    .btn-primary {
+      background: var(--accent);
+      color: white;
+      width: 100%;
+      padding: 12px 16px;
+      font-size: 0.95rem;
+      margin-top: 8px;
+    }
+    .btn-primary:hover:not(:disabled) {
+      background: var(--accent-hover);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px var(--accent-dim);
+    }
+    .btn-primary:active { transform: translateY(0); }
+    .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+
+    .btn-ghost {
+      background: var(--bg-surface-2);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .btn-ghost:hover {
+      background: var(--border);
+    }
+
+    .btn-icon {
+      width: 36px;
+      height: 36px;
+      padding: 0;
+      border-radius: 8px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .btn-icon:hover {
+      color: var(--text);
+      border-color: var(--text-secondary);
+    }
+
+    .help-box {
+      margin-top: 20px;
+      padding: 12px 14px;
+      background: var(--bg-surface-2);
+      border-radius: 8px;
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+    }
+    .help-box strong { color: var(--text); }
+
+    .error-banner {
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      color: var(--danger);
+      padding: 10px 12px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      margin-bottom: 16px;
+    }
+
+    /* ====== TOP BAR ====== */
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 16px 0 24px 0;
+      flex-wrap: wrap;
+    }
+    .topbar-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+    }
+    .topbar-logo {
+      font-size: 1.6rem;
+      line-height: 1;
+    }
+    .topbar-titles { min-width: 0; }
+    .topbar-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      margin: 0;
+    }
+    .topbar-site {
+      color: var(--text-secondary);
+      font-size: 0.8rem;
+      margin: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .topbar-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .seg {
+      display: inline-flex;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 3px;
+      gap: 2px;
+    }
+    .seg button {
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 0.82rem;
+      font-weight: 500;
+      color: var(--text-secondary);
+      transition: all 0.15s ease;
+    }
+    .seg button:hover { color: var(--text); }
+    .seg button.active {
+      background: var(--accent);
+      color: white;
+    }
+
+    /* ====== GRID ====== */
+    .grid { display: grid; gap: 20px; }
+    .grid-kpis  { grid-template-columns: repeat(4, 1fr); }
+    .grid-2     { grid-template-columns: 1fr 1fr; }
+    .grid-3     { grid-template-columns: repeat(3, 1fr); }
+
+    @media (max-width: 1024px) {
+      .grid-kpis { grid-template-columns: repeat(2, 1fr); }
+      .grid-3 { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 640px) {
+      .grid-kpis, .grid-2, .grid-3 { grid-template-columns: 1fr; }
+    }
+
+    /* ====== CARD ====== */
+    .card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      box-shadow: var(--shadow);
+      transition: border-color 0.15s ease, transform 0.15s ease;
+    }
+    .card-hover:hover {
+      border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
+      transform: translateY(-1px);
+    }
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .card-title {
+      font-size: 1rem;
+      font-weight: 600;
+      margin: 0;
+      letter-spacing: -0.01em;
+    }
+    .card-subtitle {
+      color: var(--text-secondary);
+      font-size: 0.8rem;
+      margin: 0;
+    }
+
+    /* ====== KPI ====== */
+    .kpi-label {
+      font-size: 0.78rem;
+      font-weight: 500;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin: 0 0 10px 0;
+    }
+    .kpi-value {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 2rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin: 0;
+      line-height: 1.1;
+      color: var(--text);
+      word-break: break-all;
+    }
+    .kpi-value.string {
+      font-size: 1.05rem;
+      font-family: 'Inter', sans-serif;
+      line-height: 1.4;
+    }
+    .kpi-trend {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      margin-top: 8px;
+      padding: 2px 8px;
+      border-radius: 999px;
+    }
+    .kpi-trend.up   { color: var(--success); background: rgba(34, 197, 94, 0.12); }
+    .kpi-trend.down { color: var(--danger); background: rgba(239, 68, 68, 0.12); }
+    .kpi-trend.flat { color: var(--text-muted); background: var(--bg-surface-2); }
+    .kpi-sub {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      margin-top: 8px;
+    }
+
+    /* ====== TABLE / LIST ====== */
+    .row-list { list-style: none; padding: 0; margin: 0; }
+    .row-item {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+      position: relative;
+    }
+    .row-item:last-child { border-bottom: none; }
+    .row-item.clickable { cursor: pointer; transition: background 0.12s ease; padding-left: 8px; padding-right: 8px; margin-left: -8px; margin-right: -8px; border-radius: 6px; }
+    .row-item.clickable:hover { background: var(--bg-surface-2); border-color: transparent; }
+    .row-item.clickable:hover + .row-item { border-top: 1px solid var(--border); }
+
+    .row-bar {
+      position: absolute;
+      left: 0;
+      bottom: 0;
+      height: 2px;
+      background: var(--accent);
+      border-radius: 2px;
+      opacity: 0.5;
+      transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .row-name {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 0.875rem;
+      color: var(--text);
+    }
+    .row-name .muted { color: var(--text-muted); }
+    .row-value {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
+    .row-pct {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-left: 8px;
+    }
+
+    .show-more {
+      width: 100%;
+      margin-top: 12px;
+      padding: 8px;
+      font-size: 0.82rem;
+      color: var(--text-secondary);
+      border-radius: 6px;
+      transition: background 0.15s ease, color 0.15s ease;
+    }
+    .show-more:hover {
+      background: var(--bg-surface-2);
+      color: var(--text);
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 32px 16px;
+      color: var(--text-muted);
+      font-size: 0.875rem;
+    }
+
+    /* ====== REFERRER PANEL (expanded path) ====== */
+    .ref-panel {
+      grid-column: 1 / -1;
+      background: var(--bg-surface-2);
+      border-radius: 8px;
+      padding: 12px 14px;
+      margin-top: 4px;
+      animation: fadeUp 0.2s ease;
+    }
+    .ref-panel-title {
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin: 0 0 8px 0;
+    }
+    .ref-list { list-style: none; padding: 0; margin: 0; font-size: 0.82rem; }
+    .ref-list li {
+      display: flex;
+      justify-content: space-between;
+      padding: 4px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .ref-list li:last-child { border-bottom: none; }
+    .ref-list .ref-name { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    /* ====== CHART CONTAINER ====== */
+    .chart-wrap {
+      width: 100%;
+      height: 320px;
+      margin-top: 8px;
+    }
+    .chart-wrap-sm {
+      width: 100%;
+      height: 220px;
+    }
+    .chart-center-label {
+      pointer-events: none;
+      text-anchor: middle;
+      dominant-baseline: middle;
+    }
+    .chart-center-num {
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 700;
+      font-size: 1.4rem;
+      fill: var(--text);
+    }
+    .chart-center-sub {
+      font-size: 0.7rem;
+      fill: var(--text-secondary);
+      letter-spacing: 0.04em;
+    }
+    .recharts-default-tooltip {
+      background: var(--bg-surface) !important;
+      border: 1px solid var(--border) !important;
+      border-radius: 8px !important;
+      box-shadow: var(--shadow-lg) !important;
+    }
+    .recharts-tooltip-label, .recharts-tooltip-item { color: var(--text) !important; }
+
+    .legend-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px 18px;
+      margin-top: 16px;
+      font-size: 0.82rem;
+      color: var(--text-secondary);
+    }
+    .legend-dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      margin-right: 6px;
+      vertical-align: middle;
+    }
+    .legend-name { color: var(--text); }
+    .legend-num { color: var(--text-muted); margin-left: 4px; font-family: 'JetBrains Mono', monospace; }
+
+    /* ====== FOOTER ====== */
+    .footer {
+      margin-top: 32px;
+      padding: 24px 0;
+      border-top: 1px solid var(--border);
+      text-align: center;
+      color: var(--text-secondary);
+      font-size: 0.85rem;
+    }
+    .footer .heart { color: var(--danger); }
+
+    /* ====== SKELETON ====== */
+    .sk {
+      background: linear-gradient(
+        90deg,
+        var(--skeleton-base) 0%,
+        var(--skeleton-shine) 50%,
+        var(--skeleton-base) 100%
+      );
+      background-size: 200% 100%;
+      animation: shimmer 1.4s ease-in-out infinite;
+      border-radius: 6px;
+    }
+    @keyframes shimmer {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+    .sk-line { height: 14px; margin-bottom: 8px; }
+    .sk-line.lg { height: 28px; width: 60%; }
+    .sk-line.sm { width: 40%; }
+    .sk-block { height: 100%; min-height: 120px; }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .fade-in { animation: fadeUp 0.3s ease; }
+
+    /* ====== TOAST ====== */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow-lg);
+      padding: 10px 16px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      animation: fadeUp 0.2s ease;
+      z-index: 100;
+    }
+
+    /* ====== SETTINGS MENU ====== */
+    .menu-wrap { position: relative; }
+    .menu {
+      position: absolute;
+      top: calc(100% + 6px);
+      right: 0;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      box-shadow: var(--shadow-lg);
+      min-width: 180px;
+      z-index: 50;
+      overflow: hidden;
+      animation: fadeUp 0.15s ease;
+    }
+    .menu button {
+      display: block;
+      width: 100%;
+      text-align: left;
+      padding: 10px 14px;
+      font-size: 0.85rem;
+      color: var(--text);
+      transition: background 0.12s ease;
+    }
+    .menu button:hover { background: var(--bg-surface-2); }
+    .menu button.danger { color: var(--danger); }
+    .menu hr { border: none; border-top: 1px solid var(--border); margin: 4px 0; }
+
+    /* ====== CUSTOM RANGE INPUTS ====== */
+    .custom-range {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .custom-range input[type="date"] {
+      padding: 6px 8px;
+      font-size: 0.82rem;
+      border-radius: 6px;
+    }
+    .custom-range .sep { color: var(--text-muted); font-size: 0.82rem; }
+
+    /* ====== UTIL ====== */
+    .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .sr-only {
+      position: absolute; width: 1px; height: 1px;
+      padding: 0; margin: -1px; overflow: hidden;
+      clip: rect(0,0,0,0); border: 0;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <!-- Libraries via CDN -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/prop-types@15/prop-types.min.js"></script>
+  <script src="https://unpkg.com/recharts@2/umd/Recharts.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <script type="text/babel" data-presets="react">
+    const { useState, useEffect, useMemo, useRef, useCallback } = React;
+    const {
+      ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
+      PieChart, Pie, Cell, BarChart, Bar, Legend
+    } = Recharts;
+
+    // ============================================================
+    // CONSTANTS / HELPERS
+    // ============================================================
+    const STORAGE_KEY = 'gc-dashboard-config-v1';
+    const THEME_KEY = 'gc-dashboard-theme-v1';
+    const RATE_LIMIT_MS = 260; // ~4 req/sec
+
+    const CHART_COLORS = ['var(--chart-1)', 'var(--chart-2)', 'var(--chart-3)', 'var(--chart-4)', 'var(--chart-5)', 'var(--chart-6)'];
+
+    function fmtNum(n) {
+      if (n === null || n === undefined || Number.isNaN(n)) return '—';
+      const num = Number(n);
+      if (num >= 1_000_000) return (num / 1_000_000).toFixed(1).replace(/\.0$/, '') + 'M';
+      if (num >= 1_000) return (num / 1_000).toFixed(1).replace(/\.0$/, '') + 'K';
+      return num.toLocaleString();
+    }
+
+    function fmtPct(n) {
+      if (!Number.isFinite(n)) return '—';
+      const sign = n > 0 ? '+' : '';
+      return sign + n.toFixed(1) + '%';
+    }
+
+    function getDateRange(preset, customStart, customEnd) {
+      const end = new Date();
+      end.setMinutes(0, 0, 0);
+      end.setSeconds(0);
+      end.setMilliseconds(0);
+      const start = new Date(end);
+
+      switch (preset) {
+        case 'today':
+          start.setHours(0, 0, 0, 0);
+          break;
+        case '7d':
+          start.setDate(start.getDate() - 7);
+          break;
+        case '30d':
+          start.setDate(start.getDate() - 30);
+          break;
+        case '90d':
+          start.setDate(start.getDate() - 90);
+          break;
+        case 'custom':
+          if (customStart && customEnd) {
+            return {
+              start: new Date(customStart + 'T00:00:00Z').toISOString(),
+              end: new Date(customEnd + 'T23:00:00Z').toISOString(),
+              days: Math.max(1, Math.round((new Date(customEnd) - new Date(customStart)) / 86400000)),
+            };
+          }
+          start.setDate(start.getDate() - 7);
+          break;
+        default:
+          start.setDate(start.getDate() - 7);
+      }
+      const ms = end - start;
+      const days = Math.max(1, Math.round(ms / 86400000));
+      return { start: start.toISOString(), end: end.toISOString(), days };
+    }
+
+    function getPreviousRange(start, end) {
+      const s = new Date(start);
+      const e = new Date(end);
+      const span = e - s;
+      const prevEnd = new Date(s);
+      const prevStart = new Date(s - span);
+      return { start: prevStart.toISOString(), end: prevEnd.toISOString() };
+    }
+
+    function pickGroup(days) {
+      if (days <= 1) return 'hour';
+      if (days <= 60) return 'day';
+      if (days <= 365) return 'week';
+      return 'month';
+    }
+
+    function formatDateLabel(iso, group) {
+      const d = new Date(iso);
+      if (group === 'hour') {
+        return d.toLocaleTimeString([], { hour: 'numeric', hour12: true });
+      }
+      return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+    }
+
+    // Country code → flag emoji (best-effort).
+    // GoatCounter returns names like "India", "United States". Map well-known ones.
+    const COUNTRY_FLAGS = {
+      'India':'🇮🇳','United States':'🇺🇸','United Kingdom':'🇬🇧','Germany':'🇩🇪','France':'🇫🇷','Japan':'🇯🇵',
+      'Canada':'🇨🇦','Australia':'🇦🇺','Brazil':'🇧🇷','China':'🇨🇳','Russia':'🇷🇺','Spain':'🇪🇸','Italy':'🇮🇹',
+      'Netherlands':'🇳🇱','Sweden':'🇸🇪','Norway':'🇳🇴','Switzerland':'🇨🇭','Singapore':'🇸🇬','Mexico':'🇲🇽',
+      'United Arab Emirates':'🇦🇪','Pakistan':'🇵🇰','Bangladesh':'🇧🇩','Indonesia':'🇮🇩','Turkey':'🇹🇷',
+      'South Korea':'🇰🇷','Vietnam':'🇻🇳','Poland':'🇵🇱','Argentina':'🇦🇷','Saudi Arabia':'🇸🇦',
+      'South Africa':'🇿🇦','Egypt':'🇪🇬','Israel':'🇮🇱','Ireland':'🇮🇪','Belgium':'🇧🇪','Denmark':'🇩🇰',
+      'Finland':'🇫🇮','Portugal':'🇵🇹','Greece':'🇬🇷','Czech Republic':'🇨🇿','Czechia':'🇨🇿','Romania':'🇷🇴',
+      'Ukraine':'🇺🇦','New Zealand':'🇳🇿','Hong Kong':'🇭🇰','Taiwan':'🇹🇼','Thailand':'🇹🇭','Philippines':'🇵🇭',
+      'Malaysia':'🇲🇾','Chile':'🇨🇱','Colombia':'🇨🇴','Austria':'🇦🇹','Hungary':'🇭🇺',
+    };
+    function flagFor(name) { return COUNTRY_FLAGS[name] || '🌐'; }
+
+    // ============================================================
+    // API CLIENT (rate-limited)
+    // ============================================================
+    class APIClient {
+      constructor(baseURL, apiKey) {
+        this.baseURL = baseURL.replace(/\/+$/, '');
+        this.apiKey = apiKey;
+        this.lastRequest = 0;
+        this.queue = Promise.resolve();
+      }
+
+      async request(endpoint, opts = {}) {
+        // Serialize requests + add 260ms gap to respect 4 req/sec limit.
+        this.queue = this.queue.then(async () => {
+          const now = Date.now();
+          const since = now - this.lastRequest;
+          if (since < RATE_LIMIT_MS) {
+            await new Promise(r => setTimeout(r, RATE_LIMIT_MS - since));
+          }
+          this.lastRequest = Date.now();
+        });
+        await this.queue;
+
+        const url = this.baseURL + endpoint;
+        const res = await fetch(url, {
+          method: 'GET',
+          headers: {
+            'Authorization': 'Bearer ' + this.apiKey,
+            'Content-Type': 'application/json',
+            ...(opts.headers || {}),
+          },
+        });
+
+        if (res.status === 401 || res.status === 403) {
+          const err = new Error('Authentication failed. Please check your API key.');
+          err.status = res.status;
+          err.kind = 'auth';
+          throw err;
+        }
+        if (res.status === 429) {
+          const err = new Error('Rate limit exceeded. Please wait and try again.');
+          err.status = 429;
+          err.kind = 'rate';
+          throw err;
+        }
+        if (!res.ok) {
+          let msg = 'Request failed: ' + res.status;
+          try { const body = await res.json(); if (body && body.error) msg = body.error; } catch(e) {}
+          const err = new Error(msg);
+          err.status = res.status;
+          throw err;
+        }
+        return res.json();
+      }
+    }
+
+    // ============================================================
+    // THEME
+    // ============================================================
+    function useTheme() {
+      const [theme, setTheme] = useState(() => {
+        try {
+          const saved = localStorage.getItem(THEME_KEY);
+          if (saved) return saved;
+        } catch (e) {}
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) return 'light';
+        return 'dark';
+      });
+      useEffect(() => {
+        document.documentElement.setAttribute('data-theme', theme);
+        try { localStorage.setItem(THEME_KEY, theme); } catch (e) {}
+      }, [theme]);
+      const toggle = useCallback(() => setTheme(t => t === 'dark' ? 'light' : 'dark'), []);
+      return [theme, toggle];
+    }
+
+    // ============================================================
+    // CONNECT SCREEN
+    // ============================================================
+    function ConnectScreen({ onConnect, initialError }) {
+      const [url, setUrl] = useState('');
+      const [key, setKey] = useState('');
+      const [busy, setBusy] = useState(false);
+      const [error, setError] = useState(initialError || '');
+
+      const handleSubmit = async (e) => {
+        e.preventDefault();
+        setError('');
+        let baseURL = url.trim();
+        if (!baseURL) { setError('Please enter your GoatCounter URL.'); return; }
+        if (!/^https?:\/\//i.test(baseURL)) baseURL = 'https://' + baseURL;
+        baseURL = baseURL.replace(/\/+$/, '');
+
+        if (!key.trim()) { setError('Please enter your API key.'); return; }
+
+        setBusy(true);
+        try {
+          const client = new APIClient(baseURL, key.trim());
+          const me = await client.request('/api/v0/me');
+          onConnect({ baseURL, apiKey: key.trim(), me });
+        } catch (err) {
+          setError(err.message || 'Could not connect.');
+          setBusy(false);
+        }
+      };
+
+      return (
+        <div className="connect-wrap">
+          <form className="connect-card" onSubmit={handleSubmit}>
+            <div className="connect-logo" aria-hidden="true">🐐</div>
+            <h1 className="connect-title">GoatCounter Dashboard</h1>
+            <p className="connect-subtitle">A modern analytics view for your stats.</p>
+
+            {error && <div className="error-banner" role="alert">{error}</div>}
+
+            <div className="field">
+              <label className="field-label" htmlFor="gc-url">GoatCounter URL</label>
+              <input
+                id="gc-url"
+                type="text"
+                placeholder="https://yoursite.goatcounter.com"
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                autoComplete="url"
+                spellCheck="false"
+                disabled={busy}
+              />
+            </div>
+
+            <div className="field">
+              <label className="field-label" htmlFor="gc-key">API Key</label>
+              <input
+                id="gc-key"
+                type="password"
+                placeholder="Paste your API key"
+                value={key}
+                onChange={(e) => setKey(e.target.value)}
+                autoComplete="off"
+                disabled={busy}
+              />
+            </div>
+
+            <button type="submit" className="btn btn-primary" disabled={busy}>
+              {busy ? 'Connecting…' : 'Connect →'}
+            </button>
+
+            <div className="help-box">
+              <strong>How to get an API key:</strong> Log into GoatCounter →
+              user menu (top right) → <em>Settings</em> → <em>API</em> tab → <em>Create key</em>.
+              Grant the <em>Count</em> &amp; <em>Read statistics</em> permissions.
+            </div>
+          </form>
+        </div>
+      );
+    }
+
+    // ============================================================
+    // SKELETON BLOCKS
+    // ============================================================
+    function SkeletonKPI() {
+      return (
+        <div className="card">
+          <div className="sk sk-line sm" />
+          <div className="sk sk-line lg" style={{marginTop: 14}} />
+          <div className="sk sk-line sm" />
+        </div>
+      );
+    }
+    function SkeletonCard({ h = 200 }) {
+      return (
+        <div className="card">
+          <div className="sk sk-line sm" />
+          <div className="sk" style={{height: h, marginTop: 12, borderRadius: 8}} />
+        </div>
+      );
+    }
+
+    // ============================================================
+    // KPI CARD
+    // ============================================================
+    function KPICard({ label, value, trend, sub, isString }) {
+      let trendClass = 'flat', trendIcon = '—';
+      if (Number.isFinite(trend)) {
+        if (trend > 0.5) { trendClass = 'up'; trendIcon = '▲'; }
+        else if (trend < -0.5) { trendClass = 'down'; trendIcon = '▼'; }
+        else { trendClass = 'flat'; trendIcon = '→'; }
+      }
+      return (
+        <div className="card card-hover fade-in">
+          <p className="kpi-label">{label}</p>
+          <div className={'kpi-value' + (isString ? ' string' : '')} title={isString ? value : undefined}>
+            {value}
+          </div>
+          {Number.isFinite(trend) && (
+            <span className={'kpi-trend ' + trendClass}>
+              <span aria-hidden="true">{trendIcon}</span> {fmtPct(trend)}
+            </span>
+          )}
+          {sub && <div className="kpi-sub">{sub}</div>}
+        </div>
+      );
+    }
+
+    // ============================================================
+    // TRAFFIC AREA CHART
+    // ============================================================
+    function TrafficChart({ series, group }) {
+      const data = useMemo(() => series.map(p => ({
+        ts: p.ts,
+        label: formatDateLabel(p.ts, group),
+        count: p.count,
+      })), [series, group]);
+
+      const isEmpty = !data.length || data.every(d => d.count === 0);
+
+      return (
+        <div className="card fade-in">
+          <div className="card-header">
+            <div>
+              <h3 className="card-title">Visitors over time</h3>
+              <p className="card-subtitle">Pageview counts for the selected period</p>
+            </div>
+          </div>
+          {isEmpty ? (
+            <div className="empty-state">No traffic data for this period.</div>
+          ) : (
+            <div className="chart-wrap">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="trafficGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="var(--accent)" stopOpacity={0.35} />
+                      <stop offset="100%" stopColor="var(--accent)" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" opacity={0.3} vertical={false} />
+                  <XAxis
+                    dataKey="label"
+                    tick={{ fontSize: 11, fill: 'var(--text-secondary)' }}
+                    stroke="var(--border)"
+                    axisLine={false}
+                    tickLine={false}
+                    minTickGap={20}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 11, fill: 'var(--text-secondary)' }}
+                    stroke="var(--border)"
+                    axisLine={false}
+                    tickLine={false}
+                    width={40}
+                    tickFormatter={(v) => fmtNum(v)}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      background: 'var(--bg-surface)',
+                      border: '1px solid var(--border)',
+                      borderRadius: '8px',
+                      fontSize: '0.85rem',
+                    }}
+                    labelStyle={{ color: 'var(--text)', fontWeight: 600 }}
+                    itemStyle={{ color: 'var(--accent)' }}
+                    formatter={(value) => [fmtNum(value), 'Pageviews']}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="count"
+                    stroke="var(--accent)"
+                    strokeWidth={2}
+                    fill="url(#trafficGradient)"
+                    animationDuration={900}
+                    activeDot={{ r: 5, strokeWidth: 0 }}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // ============================================================
+    // TOP PAGES (with referrer drill-down)
+    // ============================================================
+    function TopPagesCard({ paths, total, client, dateRange }) {
+      const [expanded, setExpanded] = useState(null);
+      const [refData, setRefData] = useState({});
+      const [refLoading, setRefLoading] = useState(null);
+      const [showAll, setShowAll] = useState(false);
+
+      // Normalize: GoatCounter returns `path_id`; older docs/snapshots used `id`. Use whichever is present.
+      const items = useMemo(
+        () => (paths || []).map(p => ({ ...p, id: p.path_id ?? p.id })).sort((a, b) => b.count - a.count),
+        [paths]
+      );
+      const visible = showAll ? items : items.slice(0, 8);
+      const max = Math.max(1, ...(items.map(p => p.count)));
+
+      const handleClick = useCallback(async (item) => {
+        if (expanded === item.id) { setExpanded(null); return; }
+        setExpanded(item.id);
+        if (refData[item.id]) return;
+        setRefLoading(item.id);
+        try {
+          const url = `/api/v0/stats/hits/${item.id}?start=${encodeURIComponent(dateRange.start)}&end=${encodeURIComponent(dateRange.end)}&limit=10`;
+          const data = await client.request(url);
+          setRefData(prev => ({ ...prev, [item.id]: data.refs || [] }));
+        } catch (e) {
+          setRefData(prev => ({ ...prev, [item.id]: { error: e.message } }));
+        } finally {
+          setRefLoading(null);
+        }
+      }, [expanded, refData, client, dateRange]);
+
+      return (
+        <div className="card fade-in">
+          <div className="card-header">
+            <h3 className="card-title">Top pages</h3>
+            <span className="card-subtitle">{items.length} paths</span>
+          </div>
+          {!items.length ? (
+            <div className="empty-state">No page data.</div>
+          ) : (
+            <ul className="row-list">
+              {visible.map((p) => {
+                const widthPct = (p.count / max) * 100;
+                const sharePct = total > 0 ? (p.count / total) * 100 : 0;
+                const isOpen = expanded === p.id;
+                return (
+                  <React.Fragment key={p.id}>
+                    <li
+                      className="row-item clickable"
+                      onClick={() => handleClick(p)}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleClick(p); } }}
+                      aria-expanded={isOpen}
+                    >
+                      <span className="row-name truncate" title={p.path}>
+                        {p.path}
+                        {p.title ? <span className="muted"> — {p.title}</span> : null}
+                      </span>
+                      <span>
+                        <span className="row-value">{fmtNum(p.count)}</span>
+                        <span className="row-pct">{sharePct.toFixed(1)}%</span>
+                      </span>
+                      <span className="row-bar" style={{ width: widthPct + '%' }} />
+                    </li>
+                    {isOpen && (
+                      <li className="ref-panel">
+                        <p className="ref-panel-title">Top referrers for {p.path}</p>
+                        {refLoading === p.id && <div style={{fontSize:'0.82rem', color:'var(--text-muted)'}}>Loading…</div>}
+                        {refData[p.id] && Array.isArray(refData[p.id]) && refData[p.id].length === 0 && (
+                          <div style={{fontSize:'0.82rem', color:'var(--text-muted)'}}>No referrers tracked.</div>
+                        )}
+                        {refData[p.id] && refData[p.id].error && (
+                          <div style={{fontSize:'0.82rem', color:'var(--danger)'}}>{refData[p.id].error}</div>
+                        )}
+                        {Array.isArray(refData[p.id]) && refData[p.id].length > 0 && (
+                          <ul className="ref-list">
+                            {refData[p.id].slice(0, 8).map((r, i) => (
+                              <li key={i}>
+                                <span className="ref-name">{r.name || '(direct)'}</span>
+                                <span className="row-value">{fmtNum(r.count)}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </li>
+                    )}
+                  </React.Fragment>
+                );
+              })}
+            </ul>
+          )}
+          {items.length > 8 && (
+            <button className="show-more" onClick={() => setShowAll(s => !s)}>
+              {showAll ? 'Show less' : `Show all (${items.length})`}
+            </button>
+          )}
+        </div>
+      );
+    }
+
+    // ============================================================
+    // GENERIC TOP-LIST CARD (referrers, etc.)
+    // ============================================================
+    function TopListCard({ title, subtitle, stats, prefix, formatName }) {
+      const [showAll, setShowAll] = useState(false);
+      const items = useMemo(() => (stats || []).slice().sort((a,b) => b.count - a.count), [stats]);
+      const total = items.reduce((s, x) => s + (x.count || 0), 0);
+      const max = Math.max(1, ...(items.map(x => x.count)));
+      const visible = showAll ? items : items.slice(0, 8);
+
+      return (
+        <div className="card fade-in">
+          <div className="card-header">
+            <h3 className="card-title">{title}</h3>
+            {subtitle && <span className="card-subtitle">{subtitle}</span>}
+          </div>
+          {!items.length ? (
+            <div className="empty-state">No data.</div>
+          ) : (
+            <ul className="row-list">
+              {visible.map((x, i) => {
+                const widthPct = (x.count / max) * 100;
+                const sharePct = total > 0 ? (x.count / total) * 100 : 0;
+                return (
+                  <li key={i} className="row-item">
+                    <span className="row-name truncate" title={x.name}>
+                      {prefix ? prefix(x) : null}
+                      {formatName ? formatName(x) : (x.name || '(none)')}
+                    </span>
+                    <span>
+                      <span className="row-value">{fmtNum(x.count)}</span>
+                      <span className="row-pct">{sharePct.toFixed(1)}%</span>
+                    </span>
+                    <span className="row-bar" style={{ width: widthPct + '%' }} />
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          {items.length > 8 && (
+            <button className="show-more" onClick={() => setShowAll(s => !s)}>
+              {showAll ? 'Show less' : `Show all (${items.length})`}
+            </button>
+          )}
+        </div>
+      );
+    }
+
+    // ============================================================
+    // DONUT CHART (browsers / OS / devices)
+    // ============================================================
+    function DonutCard({ title, stats, deviceMode }) {
+      let data = (stats || [])
+        .map((x) => ({ name: x.name || 'Unknown', value: x.count || 0 }))
+        .filter(x => x.value > 0)
+        .sort((a, b) => b.value - a.value);
+
+      // For device mode, fold long names down
+      if (deviceMode) {
+        data = data.map(x => {
+          const n = x.name.toLowerCase();
+          let label = x.name;
+          if (n.includes('phone')) label = 'Phones';
+          else if (n.includes('tablet')) label = 'Tablets';
+          else if (n.includes('monitor') || n.includes('desktop') || n.includes('computer')) label = 'Desktop';
+          else if (n.includes('tv') || n.includes('large screen')) label = 'TV';
+          return { ...x, name: label };
+        });
+        // Combine duplicates
+        const merged = {};
+        data.forEach(d => { merged[d.name] = (merged[d.name] || 0) + d.value; });
+        data = Object.entries(merged).map(([name, value]) => ({ name, value })).sort((a,b) => b.value - a.value);
+      }
+
+      // Top 5, rest folded to "Other"
+      let chartData = data;
+      if (data.length > 6) {
+        const top = data.slice(0, 5);
+        const rest = data.slice(5).reduce((s, x) => s + x.value, 0);
+        chartData = [...top, { name: 'Other', value: rest }];
+      }
+
+      const total = chartData.reduce((s, x) => s + x.value, 0);
+
+      return (
+        <div className="card fade-in">
+          <div className="card-header">
+            <h3 className="card-title">{title}</h3>
+          </div>
+          {!chartData.length || total === 0 ? (
+            <div className="empty-state">No data.</div>
+          ) : (
+            <>
+              <div className="chart-wrap-sm" style={{position:'relative'}}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Tooltip
+                      contentStyle={{
+                        background: 'var(--bg-surface)',
+                        border: '1px solid var(--border)',
+                        borderRadius: '8px',
+                        fontSize: '0.82rem',
+                      }}
+                      formatter={(value, name) => [
+                        `${fmtNum(value)} (${((value / total) * 100).toFixed(1)}%)`,
+                        name,
+                      ]}
+                    />
+                    <Pie
+                      data={chartData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={55}
+                      outerRadius={80}
+                      paddingAngle={2}
+                      dataKey="value"
+                      animationDuration={800}
+                      stroke="var(--bg-surface)"
+                      strokeWidth={2}
+                    >
+                      {chartData.map((entry, idx) => (
+                        <Cell key={idx} fill={CHART_COLORS[idx % CHART_COLORS.length]} />
+                      ))}
+                    </Pie>
+                  </PieChart>
+                </ResponsiveContainer>
+                <div style={{
+                  position:'absolute', top:'50%', left:'50%',
+                  transform:'translate(-50%, -50%)',
+                  textAlign:'center', pointerEvents:'none',
+                }}>
+                  <div style={{
+                    fontFamily:"'JetBrains Mono', monospace",
+                    fontWeight:700, fontSize:'1.4rem', color:'var(--text)',
+                    lineHeight:1.1,
+                  }}>{fmtNum(total)}</div>
+                  <div style={{
+                    fontSize:'0.7rem', color:'var(--text-secondary)',
+                    letterSpacing:'0.06em', marginTop:2,
+                  }}>TOTAL</div>
+                </div>
+              </div>
+              <div className="legend-row">
+                {chartData.map((d, idx) => (
+                  <span key={idx}>
+                    <span className="legend-dot" style={{ background: CHART_COLORS[idx % CHART_COLORS.length] }} />
+                    <span className="legend-name">{d.name}</span>
+                    <span className="legend-num">{fmtNum(d.value)}</span>
+                  </span>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      );
+    }
+
+    // ============================================================
+    // DASHBOARD
+    // ============================================================
+    function Dashboard({ config, onDisconnect, theme, toggleTheme }) {
+      const [preset, setPreset] = useState('7d');
+      const [customStart, setCustomStart] = useState('');
+      const [customEnd, setCustomEnd] = useState('');
+      const [data, setData] = useState(null);
+      const [prevTotal, setPrevTotal] = useState(null);
+      const [loading, setLoading] = useState(true);
+      const [err, setErr] = useState(null);
+      const [menuOpen, setMenuOpen] = useState(false);
+      const [refreshTick, setRefreshTick] = useState(0);
+
+      const client = useMemo(() => new APIClient(config.baseURL, config.apiKey), [config]);
+      const dateRange = useMemo(() => getDateRange(preset, customStart, customEnd), [preset, customStart, customEnd]);
+
+      // Fetch all data
+      useEffect(() => {
+        let cancelled = false;
+        async function run() {
+          setLoading(true);
+          setErr(null);
+          try {
+            const { start, end, days } = dateRange;
+            const group = pickGroup(days);
+
+            // Fire requests sequentially through APIClient (it self-throttles).
+            // Capture results progressively for nicer UX in the future; for now
+            // we wait for everything before rendering breakdowns.
+            const calls = [
+              ['total',   `/api/v0/stats/total?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`],
+              ['hits',    `/api/v0/stats/hits?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}&limit=20&group=${group}`],
+              ['browsers',`/api/v0/stats/browsers?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`],
+              ['systems', `/api/v0/stats/systems?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`],
+              ['sizes',   `/api/v0/stats/sizes?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`],
+              ['locations',`/api/v0/stats/locations?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`],
+              ['languages',`/api/v0/stats/languages?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`],
+              ['campaigns',`/api/v0/stats/campaigns?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`],
+            ];
+
+            const results = {};
+            for (const [k, url] of calls) {
+              if (cancelled) return;
+              try {
+                results[k] = await client.request(url);
+              } catch (e) {
+                // Campaigns endpoint may 404 on older instances — ignore
+                if (k === 'campaigns') { results[k] = { stats: [] }; continue; }
+                throw e;
+              }
+            }
+
+            if (cancelled) return;
+            setData({ ...results, group });
+
+            // Previous-period total for trend
+            try {
+              const prev = getPreviousRange(start, end);
+              const prevRes = await client.request(`/api/v0/stats/total?start=${encodeURIComponent(prev.start)}&end=${encodeURIComponent(prev.end)}`);
+              if (!cancelled) setPrevTotal(prevRes.total ?? prevRes.total_utc ?? null);
+            } catch (e) {
+              if (!cancelled) setPrevTotal(null);
+            }
+          } catch (e) {
+            if (!cancelled) setErr(e);
+          } finally {
+            if (!cancelled) setLoading(false);
+          }
+        }
+        run();
+        return () => { cancelled = true; };
+      }, [client, dateRange.start, dateRange.end, refreshTick]);
+
+      // Auth error: bounce to connect screen
+      useEffect(() => {
+        if (err && err.kind === 'auth') {
+          onDisconnect(err.message || 'Authentication failed.');
+        }
+      }, [err, onDisconnect]);
+
+      // Click-outside to close menu
+      const menuRef = useRef(null);
+      useEffect(() => {
+        if (!menuOpen) return;
+        const onDown = (e) => { if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false); };
+        document.addEventListener('mousedown', onDown);
+        return () => document.removeEventListener('mousedown', onDown);
+      }, [menuOpen]);
+
+      const siteName = config.me?.site?.cname || config.me?.site?.code
+        ? (config.me.site.cname ? config.me.site.cname : config.me.site.code + '.goatcounter.com')
+        : new URL(config.baseURL).host;
+
+      // Build time-series for traffic chart from hits "max"-grouped buckets.
+      // GoatCounter's hits payload returns per-path series keyed by group:
+      //   stats: [{ day: 'YYYY-MM-DD', daily: N, hourly: [..] }]
+      // Aggregate across paths for the overall traffic line.
+      const trafficSeries = useMemo(() => {
+        if (!data || !data.hits || !Array.isArray(data.hits.hits)) return [];
+        const group = data.group;
+        const buckets = new Map(); // key -> total
+
+        for (const path of data.hits.hits) {
+          const stats = path.stats || [];
+          for (const s of stats) {
+            if (group === 'hour' && Array.isArray(s.hourly)) {
+              s.hourly.forEach((cnt, hour) => {
+                const ts = `${s.day}T${String(hour).padStart(2, '0')}:00:00Z`;
+                buckets.set(ts, (buckets.get(ts) || 0) + (cnt || 0));
+              });
+            } else {
+              const ts = `${s.day}T00:00:00Z`;
+              buckets.set(ts, (buckets.get(ts) || 0) + (s.daily || 0));
+            }
+          }
+        }
+
+        return Array.from(buckets.entries())
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([ts, count]) => ({ ts, count }));
+      }, [data]);
+
+      // Aggregate top referrers across all paths from /hits payload (best-effort).
+      // /hits returns ref counts per path; for an aggregate referrer card we fall back to
+      // an empty list when the payload lacks them. Users can drill into specific pages
+      // for accurate referrer detail.
+      const aggregatedRefs = useMemo(() => {
+        if (!data || !data.hits || !Array.isArray(data.hits.hits)) return [];
+        const map = new Map();
+        for (const p of data.hits.hits) {
+          if (Array.isArray(p.refs)) {
+            for (const r of p.refs) {
+              map.set(r.name || '(direct)', (map.get(r.name || '(direct)') || 0) + (r.count || 0));
+            }
+          }
+        }
+        return Array.from(map.entries()).map(([name, count]) => ({ name, count }));
+      }, [data]);
+
+      const totalNum = data?.total?.total ?? data?.total?.total_utc ?? 0;
+      const trend = useMemo(() => {
+        if (!Number.isFinite(totalNum) || prevTotal === null || prevTotal === 0) {
+          if (prevTotal === 0 && totalNum > 0) return 100;
+          return null;
+        }
+        return ((totalNum - prevTotal) / prevTotal) * 100;
+      }, [totalNum, prevTotal]);
+
+      const pageviewSum = useMemo(
+        () => trafficSeries.reduce((s, p) => s + p.count, 0),
+        [trafficSeries]
+      );
+
+      const topPagePath = useMemo(() => {
+        if (!data?.hits?.hits?.length) return { name: '—', count: 0 };
+        const top = data.hits.hits.slice().sort((a, b) => b.count - a.count)[0];
+        return { name: top.path, count: top.count };
+      }, [data]);
+
+      const presetLabel = (p) => p === '7d' ? 'last 7 days' : p === '30d' ? 'last 30 days' : p === '90d' ? 'last 90 days' : p === 'today' ? 'today' : 'selected range';
+
+      return (
+        <div className="container">
+          {/* Top bar */}
+          <header className="topbar">
+            <div className="topbar-brand">
+              <span className="topbar-logo" aria-hidden="true">🐐</span>
+              <div className="topbar-titles">
+                <h1 className="topbar-title">GoatCounter Dashboard</h1>
+                <p className="topbar-site truncate">{siteName}</p>
+              </div>
+            </div>
+
+            <div className="topbar-actions">
+              <div className="seg" role="tablist" aria-label="Date range">
+                {[
+                  ['today','Today'],
+                  ['7d','7d'],
+                  ['30d','30d'],
+                  ['90d','90d'],
+                  ['custom','Custom'],
+                ].map(([val,label]) => (
+                  <button
+                    key={val}
+                    className={preset === val ? 'active' : ''}
+                    onClick={() => setPreset(val)}
+                    role="tab"
+                    aria-selected={preset === val}
+                  >{label}</button>
+                ))}
+              </div>
+
+              {preset === 'custom' && (
+                <div className="custom-range">
+                  <input
+                    type="date"
+                    value={customStart}
+                    onChange={(e) => setCustomStart(e.target.value)}
+                    aria-label="Start date"
+                    max={customEnd || undefined}
+                  />
+                  <span className="sep">→</span>
+                  <input
+                    type="date"
+                    value={customEnd}
+                    onChange={(e) => setCustomEnd(e.target.value)}
+                    aria-label="End date"
+                    min={customStart || undefined}
+                  />
+                </div>
+              )}
+
+              <button
+                className="btn-icon"
+                onClick={toggleTheme}
+                title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+                aria-label="Toggle theme"
+              >
+                {theme === 'dark' ? '☀' : '🌙'}
+              </button>
+
+              <div className="menu-wrap" ref={menuRef}>
+                <button
+                  className="btn-icon"
+                  onClick={() => setMenuOpen(o => !o)}
+                  aria-haspopup="true"
+                  aria-expanded={menuOpen}
+                  aria-label="Settings"
+                >⚙</button>
+                {menuOpen && (
+                  <div className="menu" role="menu">
+                    <button onClick={() => { setMenuOpen(false); setRefreshTick(t => t+1); }}>↻ Refresh data</button>
+                    <hr />
+                    <button className="danger" onClick={() => { setMenuOpen(false); onDisconnect(); }}>Disconnect</button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </header>
+
+          {err && err.kind !== 'auth' && (
+            <div className="error-banner" role="alert" style={{marginBottom:16}}>
+              {err.message}
+              <button
+                onClick={() => setRefreshTick(t => t+1)}
+                style={{marginLeft:12, color:'var(--accent)', textDecoration:'underline'}}
+              >Retry</button>
+            </div>
+          )}
+
+          {/* KPI row */}
+          <section className="grid grid-kpis" style={{marginBottom: 20}}>
+            {loading ? (
+              <>
+                <SkeletonKPI /><SkeletonKPI /><SkeletonKPI /><SkeletonKPI />
+              </>
+            ) : (
+              <>
+                <KPICard
+                  label="Total visitors"
+                  value={fmtNum(totalNum)}
+                  trend={trend}
+                  sub={`vs previous ${presetLabel(preset)}`}
+                />
+                <KPICard
+                  label="Pageviews"
+                  value={fmtNum(pageviewSum)}
+                  sub={presetLabel(preset)}
+                />
+                <KPICard
+                  label="Top page"
+                  value={topPagePath.name}
+                  sub={`${fmtNum(topPagePath.count)} hits`}
+                  isString
+                />
+                <KPICard
+                  label="Tracked paths"
+                  value={fmtNum(data?.hits?.hits?.length || 0)}
+                  sub="distinct URLs in range"
+                />
+              </>
+            )}
+          </section>
+
+          {/* Traffic chart */}
+          <section style={{marginBottom: 20}}>
+            {loading ? <SkeletonCard h={280} /> : (
+              <TrafficChart series={trafficSeries} group={data?.group || 'day'} />
+            )}
+          </section>
+
+          {/* Top pages + Referrers */}
+          <section className="grid grid-2" style={{marginBottom: 20}}>
+            {loading ? (
+              <><SkeletonCard /><SkeletonCard /></>
+            ) : (
+              <>
+                <TopPagesCard
+                  paths={data?.hits?.hits || []}
+                  total={totalNum}
+                  client={client}
+                  dateRange={dateRange}
+                />
+                <TopListCard
+                  title="Top referrers"
+                  subtitle="Aggregated across pages"
+                  stats={aggregatedRefs.length ? aggregatedRefs : null}
+                  formatName={(x) => x.name === '(direct)' ? <span className="muted">(direct)</span> : x.name}
+                />
+              </>
+            )}
+          </section>
+
+          {/* Donuts: browsers / OS / devices */}
+          <section className="grid grid-3" style={{marginBottom: 20}}>
+            {loading ? (
+              <><SkeletonCard /><SkeletonCard /><SkeletonCard /></>
+            ) : (
+              <>
+                <DonutCard title="Browsers" stats={data?.browsers?.stats} />
+                <DonutCard title="Operating systems" stats={data?.systems?.stats} />
+                <DonutCard title="Devices" stats={data?.sizes?.stats} deviceMode />
+              </>
+            )}
+          </section>
+
+          {/* Countries + Languages */}
+          <section className="grid grid-2" style={{marginBottom: 20}}>
+            {loading ? (
+              <><SkeletonCard /><SkeletonCard /></>
+            ) : (
+              <>
+                <TopListCard
+                  title="Countries"
+                  stats={data?.locations?.stats}
+                  prefix={(x) => <span style={{marginRight:8, fontSize:'1rem'}}>{flagFor(x.name)}</span>}
+                />
+                <TopListCard
+                  title="Languages"
+                  stats={data?.languages?.stats}
+                />
+              </>
+            )}
+          </section>
+
+          {/* Campaigns (only render if any) */}
+          {!loading && data?.campaigns?.stats?.length > 0 && (
+            <section className="grid" style={{marginBottom: 20}}>
+              <TopListCard
+                title="Campaigns"
+                subtitle="Campaign parameters seen in traffic"
+                stats={data.campaigns.stats}
+              />
+            </section>
+          )}
+
+          <footer className="footer">
+            Built with <span className="heart">♥</span> by{' '}
+            <a href="https://abhishekhsingh.github.io" target="_blank" rel="noopener noreferrer">Abhishekh Singh</a>
+            {' · '}
+            <a href="https://github.com/abhishekhsingh/goatcounter-dashboard" target="_blank" rel="noopener noreferrer">GitHub</a>
+            {' · '}
+            Powered by <a href="https://goatcounter.com" target="_blank" rel="noopener noreferrer">GoatCounter</a> API
+          </footer>
+        </div>
+      );
+    }
+
+    // ============================================================
+    // ROOT
+    // ============================================================
+    function App() {
+      const [theme, toggleTheme] = useTheme();
+      const [config, setConfig] = useState(() => {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (raw) return JSON.parse(raw);
+        } catch (e) {}
+        return null;
+      });
+      const [authError, setAuthError] = useState('');
+
+      const handleConnect = useCallback(({ baseURL, apiKey, me }) => {
+        const cfg = { baseURL, apiKey, me };
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(cfg)); } catch (e) {}
+        setConfig(cfg);
+        setAuthError('');
+      }, []);
+
+      const handleDisconnect = useCallback((msg) => {
+        try { localStorage.removeItem(STORAGE_KEY); } catch (e) {}
+        setConfig(null);
+        if (msg) setAuthError(msg);
+        else setAuthError('');
+      }, []);
+
+      if (!config) {
+        return <ConnectScreen onConnect={handleConnect} initialError={authError} />;
+      }
+
+      return (
+        <Dashboard
+          config={config}
+          onDisconnect={handleDisconnect}
+          theme={theme}
+          toggleTheme={toggleTheme}
+        />
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>

@@ -1,0 +1,31 @@
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Local env / secrets — never commit
+.env
+.env.local
+.env.*.local
+*.pem
+
+# Node (if anyone bolts on tooling later)
+node_modules/
+.cache/
+dist/
+build/
+
+# Python (for local `http.server` runs)
+__pycache__/
+*.pyc
