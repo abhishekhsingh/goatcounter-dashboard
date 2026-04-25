@@ -685,7 +685,10 @@
     // ============================================================
     const STORAGE_KEY = 'gc-dashboard-config-v1';
     const THEME_KEY = 'gc-dashboard-theme-v1';
-    const RATE_LIMIT_MS = 260; // ~4 req/sec
+    // Each request triggers a CORS preflight (Authorization header forces it),
+    // doubling effective load on GoatCounter's 4 req/sec limit. 350ms gap
+    // keeps us comfortably under it even when preflight responses aren't cached.
+    const RATE_LIMIT_MS = 350;
 
     const CHART_COLORS = ['var(--chart-1)', 'var(--chart-2)', 'var(--chart-3)', 'var(--chart-4)', 'var(--chart-5)', 'var(--chart-6)'];
 
@@ -791,48 +794,72 @@
         this.queue = Promise.resolve();
       }
 
-      async request(endpoint, opts = {}) {
-        // Serialize requests + add 260ms gap to respect 4 req/sec limit.
+      // Wait for the next rate-limit slot. Serializing on this.queue means
+      // every caller picks up an exclusive slot before issuing fetch().
+      _slot() {
         this.queue = this.queue.then(async () => {
-          const now = Date.now();
-          const since = now - this.lastRequest;
+          const since = Date.now() - this.lastRequest;
           if (since < RATE_LIMIT_MS) {
             await new Promise(r => setTimeout(r, RATE_LIMIT_MS - since));
           }
           this.lastRequest = Date.now();
         });
-        await this.queue;
+        return this.queue;
+      }
 
+      async _fetchOnce(endpoint) {
         const url = this.baseURL + endpoint;
+        // Note: no Content-Type on GETs (no body). Authorization alone forces
+        // the CORS preflight; adding Content-Type would gain nothing.
         const res = await fetch(url, {
           method: 'GET',
-          headers: {
-            'Authorization': 'Bearer ' + this.apiKey,
-            'Content-Type': 'application/json',
-            ...(opts.headers || {}),
-          },
+          headers: { 'Authorization': 'Bearer ' + this.apiKey },
         });
 
         if (res.status === 401 || res.status === 403) {
           const err = new Error('Authentication failed. Please check your API key.');
-          err.status = res.status;
-          err.kind = 'auth';
+          err.status = res.status; err.kind = 'auth';
+          throw err;
+        }
+        if (res.status === 404) {
+          const err = new Error(`Not found: ${endpoint}. Check that the URL points to your GoatCounter site (not a sub-path).`);
+          err.status = 404; err.kind = 'notfound';
           throw err;
         }
         if (res.status === 429) {
-          const err = new Error('Rate limit exceeded. Please wait and try again.');
-          err.status = 429;
-          err.kind = 'rate';
+          const err = new Error('Rate limit hit.');
+          err.status = 429; err.kind = 'rate';
           throw err;
         }
         if (!res.ok) {
           let msg = 'Request failed: ' + res.status;
           try { const body = await res.json(); if (body && body.error) msg = body.error; } catch(e) {}
-          const err = new Error(msg);
-          err.status = res.status;
+          const err = new Error(msg); err.status = res.status;
           throw err;
         }
         return res.json();
+      }
+
+      // Retry on transient failures: TypeError (fetch network/CORS error,
+      // commonly seen when a 429 strips CORS headers) and explicit 429s.
+      // Auth errors and 404s never retry — user action is required.
+      async request(endpoint, { retries = 2 } = {}) {
+        let lastErr;
+        for (let attempt = 0; attempt <= retries; attempt++) {
+          await this._slot();
+          try {
+            return await this._fetchOnce(endpoint);
+          } catch (e) {
+            lastErr = e;
+            if (e.kind === 'auth' || e.kind === 'notfound') throw e;
+            const transient = (e instanceof TypeError) || e.kind === 'rate';
+            if (!transient || attempt === retries) throw e;
+            // Backoff: 500ms, 1500ms, 3500ms…
+            const wait = 500 + attempt * 1000 + Math.random() * 200;
+            await new Promise(r => setTimeout(r, wait));
+          }
+        }
+        throw lastErr;
       }
     }
 
@@ -872,16 +899,28 @@
         if (!baseURL) { setError('Please enter your GoatCounter URL.'); return; }
         if (!/^https?:\/\//i.test(baseURL)) baseURL = 'https://' + baseURL;
         baseURL = baseURL.replace(/\/+$/, '');
+        // If user pasted "...goatcounter.com/somepath", strip it — API lives at the root.
+        try {
+          const u = new URL(baseURL);
+          baseURL = u.protocol + '//' + u.host;
+        } catch (e) {
+          setError('That doesn\'t look like a valid URL. Try e.g. https://yoursite.goatcounter.com');
+          return;
+        }
 
         if (!key.trim()) { setError('Please enter your API key.'); return; }
 
         setBusy(true);
         try {
           const client = new APIClient(baseURL, key.trim());
-          const me = await client.request('/api/v0/me');
+          const me = await client.request('/api/v0/me', { retries: 1 });
           onConnect({ baseURL, apiKey: key.trim(), me });
         } catch (err) {
-          setError(err.message || 'Could not connect.');
+          let msg = err.message || 'Could not connect.';
+          if (err instanceof TypeError) {
+            msg = `Could not reach ${baseURL}. Check the URL is correct and the site supports CORS (most GoatCounter instances do).`;
+          }
+          setError(msg);
           setBusy(false);
         }
       };
@@ -1328,66 +1367,69 @@
       const [customStart, setCustomStart] = useState('');
       const [customEnd, setCustomEnd] = useState('');
       const [data, setData] = useState(null);
+      const [errors, setErrors] = useState({}); // per-key error map
       const [prevTotal, setPrevTotal] = useState(null);
-      const [loading, setLoading] = useState(true);
-      const [err, setErr] = useState(null);
+      const [authErr, setAuthErr] = useState(null); // only fatal: bad auth
       const [menuOpen, setMenuOpen] = useState(false);
       const [refreshTick, setRefreshTick] = useState(0);
 
       const client = useMemo(() => new APIClient(config.baseURL, config.apiKey), [config]);
       const dateRange = useMemo(() => getDateRange(preset, customStart, customEnd), [preset, customStart, customEnd]);
 
-      // Fetch all data
+      // Fetch all data — tolerant of per-endpoint failures, updates progressively.
       useEffect(() => {
         let cancelled = false;
         async function run() {
-          setLoading(true);
-          setErr(null);
-          try {
-            const { start, end, days } = dateRange;
-            const group = pickGroup(days);
+          setErrors({});
+          setData({}); // start with empty object so cards render their own state
 
-            // Fire requests sequentially through APIClient (it self-throttles).
-            // Capture results progressively for nicer UX in the future; for now
-            // we wait for everything before rendering breakdowns.
-            const calls = [
-              ['total',   `/api/v0/stats/total?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`],
-              ['hits',    `/api/v0/stats/hits?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}&limit=20&group=${group}`],
-              ['browsers',`/api/v0/stats/browsers?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`],
-              ['systems', `/api/v0/stats/systems?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`],
-              ['sizes',   `/api/v0/stats/sizes?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`],
-              ['locations',`/api/v0/stats/locations?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`],
-              ['languages',`/api/v0/stats/languages?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`],
-              ['campaigns',`/api/v0/stats/campaigns?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`],
-            ];
+          const { start, end, days } = dateRange;
+          const group = pickGroup(days);
+          const q = (path) => path + (path.includes('?') ? '&' : '?') +
+            `start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`;
 
-            const results = {};
-            for (const [k, url] of calls) {
-              if (cancelled) return;
-              try {
-                results[k] = await client.request(url);
-              } catch (e) {
-                // Campaigns endpoint may 404 on older instances — ignore
-                if (k === 'campaigns') { results[k] = { stats: [] }; continue; }
-                throw e;
-              }
-            }
+          // Order matters: hero KPIs + traffic chart first so the user sees
+          // something quickly. Breakdowns load after.
+          const calls = [
+            ['total',     q('/api/v0/stats/total')],
+            ['hits',      q(`/api/v0/stats/hits?limit=20&group=${group}`)],
+            ['browsers',  q('/api/v0/stats/browsers')],
+            ['systems',   q('/api/v0/stats/systems')],
+            ['sizes',     q('/api/v0/stats/sizes')],
+            ['locations', q('/api/v0/stats/locations')],
+            ['languages', q('/api/v0/stats/languages')],
+            ['campaigns', q('/api/v0/stats/campaigns')],
+          ];
 
+          for (const [k, url] of calls) {
             if (cancelled) return;
-            setData({ ...results, group });
-
-            // Previous-period total for trend
             try {
-              const prev = getPreviousRange(start, end);
-              const prevRes = await client.request(`/api/v0/stats/total?start=${encodeURIComponent(prev.start)}&end=${encodeURIComponent(prev.end)}`);
-              if (!cancelled) setPrevTotal(prevRes.total ?? prevRes.total_utc ?? null);
+              const res = await client.request(url);
+              if (cancelled) return;
+              setData((prev) => ({ ...(prev || {}), [k]: res, group }));
             } catch (e) {
-              if (!cancelled) setPrevTotal(null);
+              if (cancelled) return;
+              if (e.kind === 'auth') { setAuthErr(e); return; }
+              // campaigns is optional — older self-hosted instances may 404
+              if (k === 'campaigns' && e.kind === 'notfound') {
+                setData((prev) => ({ ...(prev || {}), campaigns: { stats: [] }, group }));
+                continue;
+              }
+              setErrors((prev) => ({ ...prev, [k]: e.message || 'Failed' }));
             }
+          }
+
+          if (cancelled) return;
+
+          // Previous-period total for trend (best-effort)
+          try {
+            const prev = getPreviousRange(start, end);
+            const prevRes = await client.request(
+              `/api/v0/stats/total?start=${encodeURIComponent(prev.start)}&end=${encodeURIComponent(prev.end)}`
+            );
+            if (!cancelled) setPrevTotal(prevRes.total ?? prevRes.total_utc ?? null);
           } catch (e) {
-            if (!cancelled) setErr(e);
-          } finally {
-            if (!cancelled) setLoading(false);
+            if (!cancelled) setPrevTotal(null);
           }
         }
         run();
@@ -1396,10 +1438,13 @@
 
       // Auth error: bounce to connect screen
       useEffect(() => {
-        if (err && err.kind === 'auth') {
-          onDisconnect(err.message || 'Authentication failed.');
+        if (authErr) {
+          onDisconnect(authErr.message || 'Authentication failed.');
         }
-      }, [err, onDisconnect]);
+      }, [authErr, onDisconnect]);
+
+      const hasAnyError = Object.keys(errors).length > 0;
+      const failedKeys = Object.keys(errors);
 
       // Click-outside to close menu
       const menuRef = useRef(null);
@@ -1561,121 +1606,136 @@
             </div>
           </header>
 
-          {err && err.kind !== 'auth' && (
+          {hasAnyError && (
             <div className="error-banner" role="alert" style={{marginBottom:16}}>
-              {err.message}
+              Couldn't load: <strong>{failedKeys.join(', ')}</strong>. The rest of the dashboard is shown below.
               <button
                 onClick={() => setRefreshTick(t => t+1)}
-                style={{marginLeft:12, color:'var(--accent)', textDecoration:'underline'}}
+                style={{marginLeft:12, color:'var(--accent)', textDecoration:'underline', background:'none', border:'none', cursor:'pointer'}}
               >Retry</button>
             </div>
           )}
 
-          {/* KPI row */}
-          <section className="grid grid-kpis" style={{marginBottom: 20}}>
-            {loading ? (
-              <>
-                <SkeletonKPI /><SkeletonKPI /><SkeletonKPI /><SkeletonKPI />
-              </>
-            ) : (
-              <>
-                <KPICard
-                  label="Total visitors"
-                  value={fmtNum(totalNum)}
-                  trend={trend}
-                  sub={`vs previous ${presetLabel(preset)}`}
-                />
-                <KPICard
-                  label="Pageviews"
-                  value={fmtNum(pageviewSum)}
-                  sub={presetLabel(preset)}
-                />
-                <KPICard
-                  label="Top page"
-                  value={topPagePath.name}
-                  sub={`${fmtNum(topPagePath.count)} hits`}
-                  isString
-                />
-                <KPICard
-                  label="Tracked paths"
-                  value={fmtNum(data?.hits?.hits?.length || 0)}
-                  sub="distinct URLs in range"
-                />
-              </>
-            )}
-          </section>
+          {/* Per-key state helpers — render real card when ready, error card when failed,
+              skeleton otherwise. Keeps the dashboard usable when one endpoint fails. */}
+          {(() => {
+            const ready = (k) => data && (data[k] !== undefined);
+            const failed = (k) => errors[k] !== undefined;
+            const ErrCard = ({title}) => (
+              <div className="card fade-in">
+                <div className="card-header"><h3 className="card-title">{title}</h3></div>
+                <div className="empty-state" style={{color:'var(--danger)'}}>
+                  Couldn't load.
+                </div>
+              </div>
+            );
 
-          {/* Traffic chart */}
-          <section style={{marginBottom: 20}}>
-            {loading ? <SkeletonCard h={280} /> : (
-              <TrafficChart series={trafficSeries} group={data?.group || 'day'} />
-            )}
-          </section>
-
-          {/* Top pages + Referrers */}
-          <section className="grid grid-2" style={{marginBottom: 20}}>
-            {loading ? (
-              <><SkeletonCard /><SkeletonCard /></>
-            ) : (
+            return (
               <>
-                <TopPagesCard
-                  paths={data?.hits?.hits || []}
-                  total={totalNum}
-                  client={client}
-                  dateRange={dateRange}
-                />
-                <TopListCard
-                  title="Top referrers"
-                  subtitle="Aggregated across pages"
-                  stats={aggregatedRefs.length ? aggregatedRefs : null}
-                  formatName={(x) => x.name === '(direct)' ? <span className="muted">(direct)</span> : x.name}
-                />
-              </>
-            )}
-          </section>
+                {/* KPI row */}
+                <section className="grid grid-kpis" style={{marginBottom: 20}}>
+                  {ready('total') || failed('total') ? (
+                    <KPICard
+                      label="Total visitors"
+                      value={failed('total') ? '—' : fmtNum(totalNum)}
+                      trend={trend}
+                      sub={`vs previous ${presetLabel(preset)}`}
+                    />
+                  ) : <SkeletonKPI />}
+                  {ready('hits') || failed('hits') ? (
+                    <KPICard
+                      label="Pageviews"
+                      value={failed('hits') ? '—' : fmtNum(pageviewSum)}
+                      sub={presetLabel(preset)}
+                    />
+                  ) : <SkeletonKPI />}
+                  {ready('hits') || failed('hits') ? (
+                    <KPICard
+                      label="Top page"
+                      value={failed('hits') ? '—' : topPagePath.name}
+                      sub={failed('hits') ? '' : `${fmtNum(topPagePath.count)} hits`}
+                      isString
+                    />
+                  ) : <SkeletonKPI />}
+                  {ready('hits') || failed('hits') ? (
+                    <KPICard
+                      label="Tracked paths"
+                      value={failed('hits') ? '—' : fmtNum(data?.hits?.hits?.length || 0)}
+                      sub="distinct URLs in range"
+                    />
+                  ) : <SkeletonKPI />}
+                </section>
 
-          {/* Donuts: browsers / OS / devices */}
-          <section className="grid grid-3" style={{marginBottom: 20}}>
-            {loading ? (
-              <><SkeletonCard /><SkeletonCard /><SkeletonCard /></>
-            ) : (
-              <>
-                <DonutCard title="Browsers" stats={data?.browsers?.stats} />
-                <DonutCard title="Operating systems" stats={data?.systems?.stats} />
-                <DonutCard title="Devices" stats={data?.sizes?.stats} deviceMode />
-              </>
-            )}
-          </section>
+                {/* Traffic chart */}
+                <section style={{marginBottom: 20}}>
+                  {failed('hits') ? <ErrCard title="Visitors over time" />
+                    : ready('hits') ? <TrafficChart series={trafficSeries} group={data?.group || 'day'} />
+                    : <SkeletonCard h={280} />}
+                </section>
 
-          {/* Countries + Languages */}
-          <section className="grid grid-2" style={{marginBottom: 20}}>
-            {loading ? (
-              <><SkeletonCard /><SkeletonCard /></>
-            ) : (
-              <>
-                <TopListCard
-                  title="Countries"
-                  stats={data?.locations?.stats}
-                  prefix={(x) => <span style={{marginRight:8, fontSize:'1rem'}}>{flagFor(x.name)}</span>}
-                />
-                <TopListCard
-                  title="Languages"
-                  stats={data?.languages?.stats}
-                />
-              </>
-            )}
-          </section>
+                {/* Top pages + Referrers */}
+                <section className="grid grid-2" style={{marginBottom: 20}}>
+                  {failed('hits') ? <ErrCard title="Top pages" />
+                    : ready('hits') ? (
+                      <TopPagesCard
+                        paths={data?.hits?.hits || []}
+                        total={totalNum}
+                        client={client}
+                        dateRange={dateRange}
+                      />
+                    ) : <SkeletonCard />}
+                  {failed('hits') ? <ErrCard title="Top referrers" />
+                    : ready('hits') ? (
+                      <TopListCard
+                        title="Top referrers"
+                        subtitle="Aggregated across pages"
+                        stats={aggregatedRefs.length ? aggregatedRefs : null}
+                        formatName={(x) => x.name === '(direct)' ? <span className="muted">(direct)</span> : x.name}
+                      />
+                    ) : <SkeletonCard />}
+                </section>
 
-          {/* Campaigns (only render if any) */}
-          {!loading && data?.campaigns?.stats?.length > 0 && (
-            <section className="grid" style={{marginBottom: 20}}>
-              <TopListCard
-                title="Campaigns"
-                subtitle="Campaign parameters seen in traffic"
-                stats={data.campaigns.stats}
-              />
-            </section>
-          )}
+                {/* Donuts: browsers / OS / devices */}
+                <section className="grid grid-3" style={{marginBottom: 20}}>
+                  {failed('browsers') ? <ErrCard title="Browsers" />
+                    : ready('browsers') ? <DonutCard title="Browsers" stats={data?.browsers?.stats} />
+                    : <SkeletonCard />}
+                  {failed('systems') ? <ErrCard title="Operating systems" />
+                    : ready('systems') ? <DonutCard title="Operating systems" stats={data?.systems?.stats} />
+                    : <SkeletonCard />}
+                  {failed('sizes') ? <ErrCard title="Devices" />
+                    : ready('sizes') ? <DonutCard title="Devices" stats={data?.sizes?.stats} deviceMode />
+                    : <SkeletonCard />}
+                </section>
+
+                {/* Countries + Languages */}
+                <section className="grid grid-2" style={{marginBottom: 20}}>
+                  {failed('locations') ? <ErrCard title="Countries" />
+                    : ready('locations') ? (
+                      <TopListCard
+                        title="Countries"
+                        stats={data?.locations?.stats}
+                        prefix={(x) => <span style={{marginRight:8, fontSize:'1rem'}}>{flagFor(x.name)}</span>}
+                      />
+                    ) : <SkeletonCard />}
+                  {failed('languages') ? <ErrCard title="Languages" />
+                    : ready('languages') ? <TopListCard title="Languages" stats={data?.languages?.stats} />
+                    : <SkeletonCard />}
+                </section>
+
+                {/* Campaigns (only render if any) */}
+                {ready('campaigns') && data?.campaigns?.stats?.length > 0 && (
+                  <section className="grid" style={{marginBottom: 20}}>
+                    <TopListCard
+                      title="Campaigns"
+                      subtitle="Campaign parameters seen in traffic"
+                      stats={data.campaigns.stats}
+                    />
+                  </section>
+                )}
+              </>
+            );
+          })()}
 
           <footer className="footer">
             Built with <span className="heart">♥</span> by{' '}
