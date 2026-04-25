@@ -321,6 +321,14 @@
       color: white;
     }
 
+    .freshness {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      padding: 6px 4px;
+      white-space: nowrap;
+      cursor: help;
+    }
+
     /* ====== GRID ====== */
     .grid { display: grid; gap: 20px; }
     .grid-kpis  { grid-template-columns: repeat(4, 1fr); }
@@ -685,6 +693,8 @@
     // ============================================================
     const STORAGE_KEY = 'gc-dashboard-config-v1';
     const THEME_KEY = 'gc-dashboard-theme-v1';
+    const CACHE_PREFIX = 'gc-cache:';
+    const CACHE_TTL_MS = 60_000; // 60s
     // Each request triggers a CORS preflight (Authorization header forces it),
     // doubling effective load on GoatCounter's 4 req/sec limit. 350ms gap
     // keeps us comfortably under it even when preflight responses aren't cached.
@@ -840,15 +850,57 @@
         return res.json();
       }
 
+      _cacheKey(endpoint) { return `${CACHE_PREFIX}${this.baseURL}:${endpoint}`; }
+
+      _readCache(endpoint) {
+        try {
+          const raw = localStorage.getItem(this._cacheKey(endpoint));
+          if (!raw) return null;
+          const entry = JSON.parse(raw);
+          if (!entry || (Date.now() - entry.timestamp) > CACHE_TTL_MS) return null;
+          return entry;
+        } catch (e) { return null; }
+      }
+
+      _writeCache(endpoint, data) {
+        try {
+          localStorage.setItem(
+            this._cacheKey(endpoint),
+            JSON.stringify({ data, timestamp: Date.now() })
+          );
+        } catch (e) { /* private mode / quota — non-fatal */ }
+      }
+
+      // Wipe all cache entries belonging to this baseURL.
+      static clearCache(baseURL) {
+        const prefix = `${CACHE_PREFIX}${(baseURL || '').replace(/\/+$/, '')}:`;
+        try {
+          const toRemove = [];
+          for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            if (k && k.startsWith(prefix)) toRemove.push(k);
+          }
+          toRemove.forEach(k => localStorage.removeItem(k));
+        } catch (e) { /* ignore */ }
+      }
+
       // Retry on transient failures: TypeError (fetch network/CORS error,
       // commonly seen when a 429 strips CORS headers) and explicit 429s.
       // Auth errors and 404s never retry — user action is required.
-      async request(endpoint, { retries = 2 } = {}) {
+      // Pass forceRefresh:true to bypass the localStorage cache.
+      async request(endpoint, { retries = 2, forceRefresh = false } = {}) {
+        if (!forceRefresh) {
+          const cached = this._readCache(endpoint);
+          if (cached) return { ...cached.data, _cachedAt: cached.timestamp };
+        }
+
         let lastErr;
         for (let attempt = 0; attempt <= retries; attempt++) {
           await this._slot();
           try {
-            return await this._fetchOnce(endpoint);
+            const data = await this._fetchOnce(endpoint);
+            this._writeCache(endpoint, data);
+            return data;
           } catch (e) {
             lastErr = e;
             if (e.kind === 'auth' || e.kind === 'notfound') throw e;
@@ -881,6 +933,44 @@
       }, [theme]);
       const toggle = useCallback(() => setTheme(t => t === 'dark' ? 'light' : 'dark'), []);
       return [theme, toggle];
+    }
+
+    // ============================================================
+    // useInView — fires once when the ref'd element enters viewport.
+    // Used to lazy-trigger fetches for below-the-fold cards so the initial
+    // load is small (3 requests) and later tiers fetch on scroll.
+    // ============================================================
+    function useInView({ threshold = 0.1, rootMargin = '100px' } = {}) {
+      const ref = useRef(null);
+      const [inView, setInView] = useState(false);
+      useEffect(() => {
+        if (inView) return; // sticky once visible — no re-observe
+        const el = ref.current;
+        if (!el) return;
+        // Older browsers / SSR fallback: assume visible.
+        if (typeof IntersectionObserver === 'undefined') { setInView(true); return; }
+        const observer = new IntersectionObserver(([entry]) => {
+          if (entry.isIntersecting) {
+            setInView(true);
+            observer.disconnect();
+          }
+        }, { threshold, rootMargin });
+        observer.observe(el);
+        return () => observer.disconnect();
+      }, [inView, threshold, rootMargin]);
+      return [ref, inView];
+    }
+
+    // Relative-time formatter for the "Updated Xs ago" indicator.
+    function relativeTime(ts) {
+      if (!ts) return '';
+      const s = Math.max(0, Math.floor((Date.now() - ts) / 1000));
+      if (s < 5) return 'just now';
+      if (s < 60) return `${s}s ago`;
+      const m = Math.floor(s / 60);
+      if (m < 60) return `${m}m ago`;
+      const h = Math.floor(m / 60);
+      return `${h}h ago`;
     }
 
     // ============================================================
@@ -1366,75 +1456,121 @@
       const [preset, setPreset] = useState('7d');
       const [customStart, setCustomStart] = useState('');
       const [customEnd, setCustomEnd] = useState('');
-      const [data, setData] = useState(null);
+      const [data, setData] = useState({});
       const [errors, setErrors] = useState({}); // per-key error map
       const [prevTotal, setPrevTotal] = useState(null);
       const [authErr, setAuthErr] = useState(null); // only fatal: bad auth
       const [menuOpen, setMenuOpen] = useState(false);
       const [refreshTick, setRefreshTick] = useState(0);
+      const [lastUpdatedAt, setLastUpdatedAt] = useState(null);
+      const [, setNowTick] = useState(0); // forces re-render so "Updated Xs ago" ticks
 
       const client = useMemo(() => new APIClient(config.baseURL, config.apiKey), [config]);
       const dateRange = useMemo(() => getDateRange(preset, customStart, customEnd), [preset, customStart, customEnd]);
+      const { start, end, days } = dateRange;
+      const group = useMemo(() => pickGroup(days), [days]);
+      const q = useCallback((path) =>
+        path + (path.includes('?') ? '&' : '?') +
+        `start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`,
+        [start, end]
+      );
 
-      // Fetch all data — tolerant of per-endpoint failures, updates progressively.
+      // Reset state when range or refresh changes — cache makes re-fetch fast on repeats.
       useEffect(() => {
-        let cancelled = false;
-        async function run() {
-          setErrors({});
-          setData({}); // start with empty object so cards render their own state
+        setData({});
+        setErrors({});
+        setPrevTotal(null);
+      }, [start, end, refreshTick]);
 
-          const { start, end, days } = dateRange;
-          const group = pickGroup(days);
-          const q = (path) => path + (path.includes('?') ? '&' : '?') +
-            `start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`;
-
-          // Order matters: hero KPIs + traffic chart first so the user sees
-          // something quickly. Breakdowns load after.
-          const calls = [
-            ['total',     q('/api/v0/stats/total')],
-            ['hits',      q(`/api/v0/stats/hits?limit=20&group=${group}`)],
-            ['browsers',  q('/api/v0/stats/browsers')],
-            ['systems',   q('/api/v0/stats/systems')],
-            ['sizes',     q('/api/v0/stats/sizes')],
-            ['locations', q('/api/v0/stats/locations')],
-            ['languages', q('/api/v0/stats/languages')],
-            ['campaigns', q('/api/v0/stats/campaigns')],
-          ];
-
-          for (const [k, url] of calls) {
-            if (cancelled) return;
-            try {
-              const res = await client.request(url);
-              if (cancelled) return;
-              setData((prev) => ({ ...(prev || {}), [k]: res, group }));
-            } catch (e) {
-              if (cancelled) return;
-              if (e.kind === 'auth') { setAuthErr(e); return; }
-              // campaigns is optional — older self-hosted instances may 404
-              if (k === 'campaigns' && e.kind === 'notfound') {
-                setData((prev) => ({ ...(prev || {}), campaigns: { stats: [] }, group }));
-                continue;
-              }
-              setErrors((prev) => ({ ...prev, [k]: e.message || 'Failed' }));
+      // Generic tier runner. Each entry is [stateKey, url]. Errors and data
+      // are tracked per key so a single failure never bricks the dashboard.
+      const runTier = useCallback(async (calls, cancelledRef) => {
+        for (const [k, url] of calls) {
+          if (cancelledRef.current) return;
+          try {
+            const res = await client.request(url);
+            if (cancelledRef.current) return;
+            setData(prev => ({ ...prev, [k]: res }));
+            setErrors(prev => { if (!(k in prev)) return prev; const n = { ...prev }; delete n[k]; return n; });
+          } catch (e) {
+            if (cancelledRef.current) return;
+            if (e.kind === 'auth') { setAuthErr(e); return; }
+            // campaigns is optional — older self-hosted instances may 404
+            if (k === 'campaigns' && e.kind === 'notfound') {
+              setData(prev => ({ ...prev, campaigns: { stats: [] } }));
+              continue;
             }
+            setErrors(prev => ({ ...prev, [k]: e.message || 'Failed' }));
           }
+        }
+      }, [client]);
 
-          if (cancelled) return;
+      // Tier 1 — always fires. KPIs, traffic chart, top pages, referrers.
+      // Plus the previous-period total for the trend KPI.
+      useEffect(() => {
+        const cancelledRef = { current: false };
+        (async () => {
+          await runTier([
+            ['total', q('/api/v0/stats/total')],
+            ['hits',  q(`/api/v0/stats/hits?limit=20&group=${group}`)],
+          ], cancelledRef);
+          if (cancelledRef.current) return;
+          setLastUpdatedAt(Date.now());
 
-          // Previous-period total for trend (best-effort)
+          // Previous-period total for trend (best-effort, doesn't block UI)
           try {
             const prev = getPreviousRange(start, end);
             const prevRes = await client.request(
               `/api/v0/stats/total?start=${encodeURIComponent(prev.start)}&end=${encodeURIComponent(prev.end)}`
             );
-            if (!cancelled) setPrevTotal(prevRes.total ?? prevRes.total_utc ?? null);
-          } catch (e) {
-            if (!cancelled) setPrevTotal(null);
-          }
-        }
-        run();
-        return () => { cancelled = true; };
-      }, [client, dateRange.start, dateRange.end, refreshTick]);
+            if (!cancelledRef.current) setPrevTotal(prevRes.total ?? prevRes.total_utc ?? null);
+          } catch (e) { if (!cancelledRef.current) setPrevTotal(null); }
+        })();
+        return () => { cancelledRef.current = true; };
+      }, [client, q, group, start, end, refreshTick, runTier]);
+
+      // Tier 2 — donut row (browsers / OS / devices). Lazy on visibility.
+      const [donutRowRef, donutInView] = useInView();
+      useEffect(() => {
+        if (!donutInView) return;
+        const cancelledRef = { current: false };
+        runTier([
+          ['browsers', q('/api/v0/stats/browsers')],
+          ['systems',  q('/api/v0/stats/systems')],
+          ['sizes',    q('/api/v0/stats/sizes')],
+        ], cancelledRef);
+        return () => { cancelledRef.current = true; };
+      }, [donutInView, q, refreshTick, runTier]);
+
+      // Tier 3 — geo row (countries / languages). Lazy on visibility.
+      const [geoRowRef, geoInView] = useInView();
+      useEffect(() => {
+        if (!geoInView) return;
+        const cancelledRef = { current: false };
+        runTier([
+          ['locations', q('/api/v0/stats/locations')],
+          ['languages', q('/api/v0/stats/languages')],
+        ], cancelledRef);
+        return () => { cancelledRef.current = true; };
+      }, [geoInView, q, refreshTick, runTier]);
+
+      // Tier 4 — campaigns. Lazy on visibility.
+      const [campaignsRef, campaignsInView] = useInView();
+      useEffect(() => {
+        if (!campaignsInView) return;
+        const cancelledRef = { current: false };
+        runTier([
+          ['campaigns', q('/api/v0/stats/campaigns')],
+        ], cancelledRef);
+        return () => { cancelledRef.current = true; };
+      }, [campaignsInView, q, refreshTick, runTier]);
+
+      // Tick every 10s so the "Updated Xs ago" label stays current.
+      useEffect(() => {
+        if (!lastUpdatedAt) return;
+        const id = setInterval(() => setNowTick(t => t + 1), 10_000);
+        return () => clearInterval(id);
+      }, [lastUpdatedAt]);
 
       // Auth error: bounce to connect screen
       useEffect(() => {
@@ -1465,8 +1601,7 @@
       // Aggregate across paths for the overall traffic line.
       const trafficSeries = useMemo(() => {
         if (!data || !data.hits || !Array.isArray(data.hits.hits)) return [];
-        const group = data.group;
-        const buckets = new Map(); // key -> total
+        const buckets = new Map();
 
         for (const path of data.hits.hits) {
           const stats = path.stats || [];
@@ -1486,7 +1621,7 @@
         return Array.from(buckets.entries())
           .sort(([a], [b]) => a.localeCompare(b))
           .map(([ts, count]) => ({ ts, count }));
-      }, [data]);
+      }, [data, group]);
 
       // Aggregate top referrers across all paths from /hits payload (best-effort).
       // /hits returns ref counts per path; for an aggregate referrer card we fall back to
@@ -1587,6 +1722,13 @@
                 {theme === 'dark' ? '☀' : '🌙'}
               </button>
 
+              {lastUpdatedAt && (
+                <span
+                  className="freshness"
+                  title={new Date(lastUpdatedAt).toLocaleString()}
+                >Updated {relativeTime(lastUpdatedAt)}</span>
+              )}
+
               <div className="menu-wrap" ref={menuRef}>
                 <button
                   className="btn-icon"
@@ -1597,9 +1739,17 @@
                 >⚙</button>
                 {menuOpen && (
                   <div className="menu" role="menu">
-                    <button onClick={() => { setMenuOpen(false); setRefreshTick(t => t+1); }}>↻ Refresh data</button>
+                    <button onClick={() => {
+                      setMenuOpen(false);
+                      APIClient.clearCache(config.baseURL);
+                      setRefreshTick(t => t + 1);
+                    }}>↻ Refresh data</button>
                     <hr />
-                    <button className="danger" onClick={() => { setMenuOpen(false); onDisconnect(); }}>Disconnect</button>
+                    <button className="danger" onClick={() => {
+                      setMenuOpen(false);
+                      APIClient.clearCache(config.baseURL);
+                      onDisconnect();
+                    }}>Disconnect</button>
                   </div>
                 )}
               </div>
@@ -1669,7 +1819,7 @@
                 {/* Traffic chart */}
                 <section style={{marginBottom: 20}}>
                   {failed('hits') ? <ErrCard title="Visitors over time" />
-                    : ready('hits') ? <TrafficChart series={trafficSeries} group={data?.group || 'day'} />
+                    : ready('hits') ? <TrafficChart series={trafficSeries} group={group} />
                     : <SkeletonCard h={280} />}
                 </section>
 
@@ -1695,8 +1845,8 @@
                     ) : <SkeletonCard />}
                 </section>
 
-                {/* Donuts: browsers / OS / devices */}
-                <section className="grid grid-3" style={{marginBottom: 20}}>
+                {/* Donuts: browsers / OS / devices — lazy on visibility (Tier 2) */}
+                <section ref={donutRowRef} className="grid grid-3" style={{marginBottom: 20}}>
                   {failed('browsers') ? <ErrCard title="Browsers" />
                     : ready('browsers') ? <DonutCard title="Browsers" stats={data?.browsers?.stats} />
                     : <SkeletonCard />}
@@ -1708,8 +1858,8 @@
                     : <SkeletonCard />}
                 </section>
 
-                {/* Countries + Languages */}
-                <section className="grid grid-2" style={{marginBottom: 20}}>
+                {/* Countries + Languages — lazy on visibility (Tier 3) */}
+                <section ref={geoRowRef} className="grid grid-2" style={{marginBottom: 20}}>
                   {failed('locations') ? <ErrCard title="Countries" />
                     : ready('locations') ? (
                       <TopListCard
@@ -1723,16 +1873,18 @@
                     : <SkeletonCard />}
                 </section>
 
-                {/* Campaigns (only render if any) */}
-                {ready('campaigns') && data?.campaigns?.stats?.length > 0 && (
-                  <section className="grid" style={{marginBottom: 20}}>
-                    <TopListCard
-                      title="Campaigns"
-                      subtitle="Campaign parameters seen in traffic"
-                      stats={data.campaigns.stats}
-                    />
-                  </section>
-                )}
+                {/* Campaigns — lazy on visibility (Tier 4). Only renders the card if data has rows. */}
+                <section ref={campaignsRef} style={{marginBottom: 20}}>
+                  {ready('campaigns') && data?.campaigns?.stats?.length > 0 && (
+                    <div className="grid">
+                      <TopListCard
+                        title="Campaigns"
+                        subtitle="Campaign parameters seen in traffic"
+                        stats={data.campaigns.stats}
+                      />
+                    </div>
+                  )}
+                </section>
               </>
             );
           })()}
@@ -1771,11 +1923,14 @@
       }, []);
 
       const handleDisconnect = useCallback((msg) => {
-        try { localStorage.removeItem(STORAGE_KEY); } catch (e) {}
+        try {
+          if (config?.baseURL) APIClient.clearCache(config.baseURL);
+          localStorage.removeItem(STORAGE_KEY);
+        } catch (e) {}
         setConfig(null);
         if (msg) setAuthError(msg);
         else setAuthError('');
-      }, []);
+      }, [config?.baseURL]);
 
       if (!config) {
         return <ConnectScreen onConnect={handleConnect} initialError={authError} />;
