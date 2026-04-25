@@ -211,15 +211,6 @@
     .btn-primary:active { transform: translateY(0); }
     .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
 
-    .btn-ghost {
-      background: var(--bg-surface-2);
-      color: var(--text);
-      border: 1px solid var(--border);
-    }
-    .btn-ghost:hover {
-      background: var(--border);
-    }
-
     .btn-icon {
       width: 36px;
       height: 36px;
@@ -381,12 +372,6 @@
       margin-right: 6px;
     }
     .row-chevron.open { transform: rotate(90deg); color: var(--accent); }
-    .row-hint {
-      font-size: 0.78rem;
-      color: var(--text-muted);
-      margin-top: -8px;
-      margin-bottom: 4px;
-    }
 
     /* ====== GRID ====== */
     .grid { display: grid; gap: 20px; }
@@ -582,22 +567,6 @@
       width: 100%;
       height: 220px;
     }
-    .chart-center-label {
-      pointer-events: none;
-      text-anchor: middle;
-      dominant-baseline: middle;
-    }
-    .chart-center-num {
-      font-family: 'JetBrains Mono', monospace;
-      font-weight: 700;
-      font-size: 1.4rem;
-      fill: var(--text);
-    }
-    .chart-center-sub {
-      font-size: 0.7rem;
-      fill: var(--text-secondary);
-      letter-spacing: 0.04em;
-    }
     .recharts-default-tooltip {
       background: var(--bg-surface) !important;
       border: 1px solid var(--border) !important;
@@ -655,29 +624,12 @@
     .sk-line { height: 14px; margin-bottom: 8px; }
     .sk-line.lg { height: 28px; width: 60%; }
     .sk-line.sm { width: 40%; }
-    .sk-block { height: 100%; min-height: 120px; }
 
     @keyframes fadeUp {
       from { opacity: 0; transform: translateY(6px); }
       to { opacity: 1; transform: translateY(0); }
     }
     .fade-in { animation: fadeUp 0.3s ease; }
-
-    /* ====== TOAST ====== */
-    .toast {
-      position: fixed;
-      bottom: 24px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: var(--bg-surface);
-      border: 1px solid var(--border);
-      box-shadow: var(--shadow-lg);
-      padding: 10px 16px;
-      border-radius: 8px;
-      font-size: 0.85rem;
-      animation: fadeUp 0.2s ease;
-      z-index: 100;
-    }
 
     /* ====== SETTINGS MENU ====== */
     .menu-wrap { position: relative; }
@@ -723,17 +675,15 @@
 
     /* ====== UTIL ====== */
     .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .sr-only {
-      position: absolute; width: 1px; height: 1px;
-      padding: 0; margin: -1px; overflow: hidden;
-      clip: rect(0,0,0,0); border: 0;
-    }
   </style>
 </head>
 <body>
   <div id="root"></div>
 
-  <!-- Libraries via CDN -->
+  <!-- Libraries via CDN. prop-types must load before Recharts: Recharts' UMD
+       build treats PropTypes as an external global (Animate.js calls
+       PropTypes.oneOfType during module init), so dropping it crashes the
+       chart layer. -->
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/prop-types@15/prop-types.min.js"></script>
@@ -744,7 +694,7 @@
     const { useState, useEffect, useMemo, useRef, useCallback } = React;
     const {
       ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-      PieChart, Pie, Cell, BarChart, Bar, Legend
+      PieChart, Pie, Cell,
     } = Recharts;
 
     // ============================================================
@@ -754,10 +704,10 @@
     const THEME_KEY = 'gc-dashboard-theme-v1';
     const CACHE_PREFIX = 'gc-cache:';
     const CACHE_TTL_MS = 60_000; // 60s
-    // Each request triggers a CORS preflight (Authorization header forces it),
-    // doubling effective load on GoatCounter's 4 req/sec limit. 500ms gap
-    // keeps wire rate ~2 req/sec including preflights — comfortably under
-    // any real bucket implementation.
+    // GoatCounter's documented limit is 4 req/sec, but the actual bucket appears
+    // to be more restrictive in burst conditions. Every request also triggers a
+    // CORS preflight (the Authorization header forces it) which doubles the wire
+    // load. A 500ms gap keeps wire rate ~2 req/sec including preflights.
     const RATE_LIMIT_MS = 500;
 
     const CHART_COLORS = ['var(--chart-1)', 'var(--chart-2)', 'var(--chart-3)', 'var(--chart-4)', 'var(--chart-5)', 'var(--chart-6)'];
@@ -798,10 +748,17 @@
           break;
         case 'custom':
           if (customStart && customEnd) {
+            // Interpret the date-input strings in the user's local timezone so
+            // "today" in the picker matches "today" on the dashboard. Using
+            // 'T00:00:00' (no Z) anchors to local time; the toISOString() call
+            // converts to UTC for the API. The presets do the same — both
+            // boundaries are local-hour aligned.
+            const s = new Date(customStart + 'T00:00:00');
+            const e = new Date(customEnd + 'T23:00:00');
             return {
-              start: new Date(customStart + 'T00:00:00Z').toISOString(),
-              end: new Date(customEnd + 'T23:00:00Z').toISOString(),
-              days: Math.max(1, Math.round((new Date(customEnd) - new Date(customStart)) / 86400000)),
+              start: s.toISOString(),
+              end: e.toISOString(),
+              days: Math.max(1, Math.round((e - s) / 86400000)),
             };
           }
           start.setDate(start.getDate() - 7);
@@ -838,8 +795,9 @@
       return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
     }
 
-    // Country code → flag emoji (best-effort).
-    // GoatCounter returns names like "India", "United States". Map well-known ones.
+    // Country name → flag emoji (best-effort). GoatCounter returns names
+    // ("India", "United States"), not ISO codes — keys reflect that.
+    // Falls back to 🌐 for unmapped names.
     const COUNTRY_FLAGS = {
       'India':'🇮🇳','United States':'🇺🇸','United Kingdom':'🇬🇧','Germany':'🇩🇪','France':'🇫🇷','Japan':'🇯🇵',
       'Canada':'🇨🇦','Australia':'🇦🇺','Brazil':'🇧🇷','China':'🇨🇳','Russia':'🇷🇺','Spain':'🇪🇸','Italy':'🇮🇹',
@@ -945,7 +903,7 @@
       async request(endpoint, { retries = 2, forceRefresh = false } = {}) {
         if (!forceRefresh) {
           const cached = this._readCache(endpoint);
-          if (cached) return { ...cached.data, _cachedAt: cached.timestamp };
+          if (cached) return cached.data;
         }
 
         const run = async () => {
@@ -978,10 +936,9 @@
         };
 
         // Chain onto the queue so this run waits for any previous run to finish.
-        const prev = this.queue;
-        const next = prev.then(run, run); // run regardless of upstream success
-        // Keep the chain alive even if this caller's promise rejects, so the
-        // next caller doesn't inherit the rejection.
+        // The chain swallows upstream rejections (passing `run` as both then/catch
+        // handlers) so one caller's failure doesn't stall the queue for the next.
+        const next = this.queue.then(run, run);
         this.queue = next.catch(() => {});
         return next;
       }
@@ -1019,7 +976,9 @@
         if (inView) return; // sticky once visible — no re-observe
         const el = ref.current;
         if (!el) return;
-        // Older browsers / SSR fallback: assume visible.
+        // Defensive fallback for environments without IntersectionObserver
+        // (very old browsers). The dashboard never SSRs — it's a static
+        // single-page app — so this never fires in normal use.
         if (typeof IntersectionObserver === 'undefined') { setInView(true); return; }
         const observer = new IntersectionObserver(([entry]) => {
           if (entry.isIntersecting) {
@@ -1585,14 +1544,15 @@
           const url = endpointFor(k);
           if (!url) continue;
           setProgress(p => ({ ...p, fired: p.fired + 1 }));
+          let earlyReturn = false;
           try {
             const res = await client.request(url);
-            if (cancelledRef.current) return;
+            if (cancelledRef.current) { earlyReturn = true; return; }
             setData(prev => ({ ...prev, [k]: res }));
             setErrors(prev => { if (!(k in prev)) return prev; const n = { ...prev }; delete n[k]; return n; });
           } catch (e) {
-            if (cancelledRef.current) return;
-            if (e.kind === 'auth') { setAuthErr(e); return; }
+            if (cancelledRef.current) { earlyReturn = true; return; }
+            if (e.kind === 'auth') { setAuthErr(e); earlyReturn = true; return; }
             // campaigns is optional — older self-hosted instances may 404
             if (k === 'campaigns' && e.kind === 'notfound') {
               setData(prev => ({ ...prev, campaigns: { stats: [] } }));
@@ -1600,17 +1560,25 @@
             }
             setErrors(prev => ({ ...prev, [k]: e.message || 'Failed' }));
           } finally {
-            if (!cancelledRef.current) setProgress(p => ({ ...p, done: p.done + 1 }));
+            // Always pair fired++ with done++ so the progress counter never
+            // gets stuck. React 18 silently no-ops setState on unmounted
+            // components, so we don't need to guard for that.
+            setProgress(p => ({ ...p, done: p.done + 1 }));
           }
+          if (earlyReturn) return;
         }
       }, [client, endpointFor]);
 
       // Single-key retry — fires one request through the queue with cache bypass.
       // By the time the user notices a failed card and clicks retry, the bucket
       // has refilled, and a single isolated request is very likely to succeed.
+      // Dedupe on rapid clicks so the same retry doesn't queue twice.
+      const inFlightRetries = useRef(new Set());
       const retryKey = useCallback(async (key) => {
+        if (inFlightRetries.current.has(key)) return;
         const url = endpointFor(key);
         if (!url) return;
+        inFlightRetries.current.add(key);
         setErrors(prev => { if (!(key in prev)) return prev; const n = {...prev}; delete n[key]; return n; });
         setProgress(p => ({ ...p, fired: p.fired + 1 }));
         try {
@@ -1621,6 +1589,7 @@
           setErrors(prev => ({ ...prev, [key]: e.message || 'Failed' }));
         } finally {
           setProgress(p => ({ ...p, done: p.done + 1 }));
+          inFlightRetries.current.delete(key);
         }
       }, [client, endpointFor]);
 
@@ -1644,7 +1613,8 @@
           } catch (e) {
             if (!cancelledRef.current) setPrevTotal(null);
           } finally {
-            if (!cancelledRef.current) setProgress(p => ({ ...p, done: p.done + 1 }));
+            // Always increment done — see runTier finally for the rationale.
+            setProgress(p => ({ ...p, done: p.done + 1 }));
           }
         })();
         return () => { cancelledRef.current = true; };
@@ -1703,9 +1673,9 @@
         return () => document.removeEventListener('mousedown', onDown);
       }, [menuOpen]);
 
-      const siteName = config.me?.site?.cname || config.me?.site?.code
-        ? (config.me.site.cname ? config.me.site.cname : config.me.site.code + '.goatcounter.com')
-        : new URL(config.baseURL).host;
+      const site = config.me?.site;
+      const siteName = site?.cname
+        || (site?.code ? `${site.code}.goatcounter.com` : new URL(config.baseURL).host);
 
       // Build time-series for traffic chart from hits "max"-grouped buckets.
       // GoatCounter's hits payload returns per-path series keyed by group:

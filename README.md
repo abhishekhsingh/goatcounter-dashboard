@@ -10,7 +10,12 @@ A modern, beautiful, open-source alternative dashboard for [GoatCounter](https:/
 - 🌗 **Dark & light mode** — defaults to your system preference, toggle persisted across sessions.
 - 📅 **Flexible date ranges** — Today, 7d, 30d, 90d, or a custom range.
 - 📈 **Period-over-period trends** — every KPI card compares against the previous equivalent window.
-- 🔍 **Drill into pages** — click any page in the Top Pages list to see referrer breakdown for just that page.
+- 🔍 **Drill into pages** — click any page in the Top Pages list to see the referrer breakdown for just that page.
+- ⚡ **Smart loading** — KPIs and the traffic chart load first; donut, geo, and campaign breakdowns lazy-fetch only when you scroll to them.
+- 💾 **60-second response cache** — switching themes, toggling date ranges, or revisiting a tab within a minute makes zero network requests.
+- 🔁 **Per-card retry** — if a card fails (rate limit, hiccup), recover it with a single click instead of refreshing the whole dashboard.
+- 🚦 **Rate-limit aware** — strictly sequential request queue with a 500ms gap; never bursts the GoatCounter API.
+- 🔄 **Loading indicator** — "Loading X of Y…" while fetching, "Updated Xs ago" when idle.
 - 📱 **Fully responsive** — single column on mobile, two-column on tablet, full grid on desktop.
 - 🚀 **Zero build step** — single `index.html`, React + Recharts loaded from CDN. Open in a browser and it works.
 - 🔒 **Privacy-first** — your API key is stored only in your browser's localStorage. Nothing is sent anywhere except the GoatCounter API directly.
@@ -54,20 +59,24 @@ python3 -m http.server 8000
 
 ## 🛠 API Endpoints Used
 
-This dashboard talks to GoatCounter's public REST API (`/api/v0`). All requests are rate-limited client-side (~4 req/sec) to respect GoatCounter's limits.
+This dashboard talks to GoatCounter's public REST API (`/api/v0`). Requests are strictly serialized client-side with a 500ms gap between completions so the wire rate (including unavoidable CORS preflights) stays around 2 req/sec — comfortably under GoatCounter's bucket regardless of its exact implementation.
 
-| Endpoint | Purpose |
-|----------|---------|
-| `GET /api/v0/me` | Verify connection, fetch site name |
-| `GET /api/v0/stats/total` | Hero KPI total visitors |
-| `GET /api/v0/stats/hits` | Traffic time-series + top pages list |
-| `GET /api/v0/stats/hits/{path_id}` | Per-page referrer drill-down |
-| `GET /api/v0/stats/browsers` | Browser donut chart |
-| `GET /api/v0/stats/systems` | OS donut chart |
-| `GET /api/v0/stats/sizes` | Device breakdown |
-| `GET /api/v0/stats/locations` | Countries chart |
-| `GET /api/v0/stats/languages` | Languages chart |
-| `GET /api/v0/stats/campaigns` | Campaigns table (when available) |
+| Endpoint | Purpose | Tier |
+|----------|---------|------|
+| `GET /api/v0/me` | Verify connection on the connect screen | connect |
+| `GET /api/v0/stats/total` | Total-visitors KPI + previous-period total for trend | 1 (immediate) |
+| `GET /api/v0/stats/hits` | Traffic time-series + top pages list | 1 (immediate) |
+| `GET /api/v0/stats/hits/{path_id}` | Per-page referrer drill-down (on click) | on-demand |
+| `GET /api/v0/stats/browsers` | Browser donut chart | 2 (lazy) |
+| `GET /api/v0/stats/systems` | OS donut chart | 2 (lazy) |
+| `GET /api/v0/stats/sizes` | Device breakdown | 2 (lazy) |
+| `GET /api/v0/stats/locations` | Countries chart | 3 (lazy) |
+| `GET /api/v0/stats/languages` | Languages chart | 3 (lazy) |
+| `GET /api/v0/stats/campaigns` | Campaigns table (when present) | 4 (lazy) |
+
+**Tiering:** Tier 1 fires on initial load. Tiers 2/3/4 lazy-fetch via `IntersectionObserver` when their section enters the viewport, so the initial network burst is just 3 requests regardless of how many breakdowns the dashboard renders.
+
+**Caching:** every successful response is cached in `localStorage` for 60 seconds keyed by `(baseURL, endpoint, params)`. Refresh in the settings menu clears the cache and forces a fresh fetch; Disconnect wipes both the cache and stored credentials.
 
 ## 🧱 Tech Stack
 
@@ -77,22 +86,26 @@ This dashboard talks to GoatCounter's public REST API (`/api/v0`). All requests 
 - **Inter** + **JetBrains Mono** from Google Fonts
 - Plain CSS with custom properties for theming — no Tailwind, no preprocessor, no bundler
 
-The whole app is a single ~1000-line `index.html`. That's it.
+The whole app is a single `index.html` (~1900 lines including CSS + React + comments). No bundler, no compile step.
 
 ## 🧭 Project Status
 
-This is an early v1. Things that work:
+Working today:
 
 - ✅ Connect / disconnect with persisted credentials
 - ✅ All 9 GoatCounter stat endpoints integrated
-- ✅ Period-over-period trends
-- ✅ Drill-down referrers per page
+- ✅ Period-over-period trend on the visitors KPI
+- ✅ Drill-down referrers per page (click any row in Top Pages)
 - ✅ Dark / light theme with system-preference default
-- ✅ Custom date range picker
-- ✅ Rate-limited request queue
-- ✅ Skeleton loading states + error handling
+- ✅ Today / 7d / 30d / 90d / Custom date ranges
+- ✅ Strict-sequential rate-limited request queue
+- ✅ 60-second `localStorage` response cache
+- ✅ Lazy-loaded breakdowns via `IntersectionObserver`
+- ✅ Per-card retry button on failed endpoints
+- ✅ "Loading X of Y…" / "Updated Xs ago" freshness indicator
+- ✅ Skeleton loading states, fault-tolerant error handling
 
-Ideas for the future: world-map view for countries, CSV export, multi-site switcher, real-time mode.
+Ideas for the future: world-map view for countries, CSV export, multi-site switcher, real-time mode, stale-while-revalidate cache.
 
 ## 🤝 Contributing
 
@@ -102,6 +115,18 @@ PRs welcome! Because there's no build step, contributing is easy:
 2. Edit `index.html`.
 3. Open it in a browser to test.
 4. Open a PR.
+
+### Project rules
+
+These keep the dashboard simple and trustworthy. PRs that violate them are unlikely to be merged:
+
+- **No build step.** No npm, no bundler, no transpiler outside the browser. Everything stays inside one `index.html` (plus `assets/`). Babel-standalone is the only compile-on-load we tolerate, and it's already there.
+- **No new runtime dependencies** beyond the four already loaded from a CDN (React, ReactDOM, Recharts, Babel-standalone). Adding another script tag needs a strong reason and an issue to discuss it first.
+- **No analytics, telemetry, or tracking.** This is a privacy-friendly dashboard for a privacy-friendly analytics tool — it cannot phone home. The only network calls allowed are to the user's GoatCounter instance.
+- **No backend.** No server-side proxy, no serverless function, no edge worker. Everything must run in the browser against the GoatCounter API directly.
+- **Credentials stay local.** API keys live in `localStorage` and only travel to the user's GoatCounter site over HTTPS. Never log them, never send them anywhere else.
+- **Keep it deployable to GitHub Pages.** Anything that breaks plain static hosting (relative paths, framework conventions, etc.) is out of scope.
+- **Match the existing style.** Plain CSS with custom properties, no Tailwind / styled-components / CSS-in-JS. React function components with hooks. No class components.
 
 Bug reports and feature ideas → [GitHub Issues](https://github.com/abhishekhsingh/goatcounter-dashboard/issues).
 
