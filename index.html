@@ -328,6 +328,65 @@
       white-space: nowrap;
       cursor: help;
     }
+    .freshness.loading { color: var(--accent); }
+    .freshness.loading::before {
+      content: '';
+      display: inline-block;
+      width: 8px; height: 8px;
+      margin-right: 6px;
+      vertical-align: middle;
+      border-radius: 50%;
+      background: var(--accent);
+      animation: pulse 1.2s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 0.3; transform: scale(0.85); }
+      50% { opacity: 1; transform: scale(1); }
+    }
+
+    .card-error-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 32px 16px;
+      color: var(--text-muted);
+      font-size: 0.875rem;
+    }
+    .retry-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 6px 12px;
+      border-radius: 6px;
+      background: var(--bg-surface-2);
+      border: 1px solid var(--border);
+      color: var(--accent);
+      font-size: 0.82rem;
+      font-weight: 500;
+      transition: all 0.15s ease;
+    }
+    .retry-btn:hover {
+      background: var(--accent-dim);
+      border-color: var(--accent);
+    }
+
+    .row-chevron {
+      display: inline-block;
+      width: 14px;
+      color: var(--text-muted);
+      font-size: 0.7rem;
+      text-align: center;
+      transition: transform 0.15s ease;
+      margin-right: 6px;
+    }
+    .row-chevron.open { transform: rotate(90deg); color: var(--accent); }
+    .row-hint {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      margin-top: -8px;
+      margin-bottom: 4px;
+    }
 
     /* ====== GRID ====== */
     .grid { display: grid; gap: 20px; }
@@ -696,9 +755,10 @@
     const CACHE_PREFIX = 'gc-cache:';
     const CACHE_TTL_MS = 60_000; // 60s
     // Each request triggers a CORS preflight (Authorization header forces it),
-    // doubling effective load on GoatCounter's 4 req/sec limit. 350ms gap
-    // keeps us comfortably under it even when preflight responses aren't cached.
-    const RATE_LIMIT_MS = 350;
+    // doubling effective load on GoatCounter's 4 req/sec limit. 500ms gap
+    // keeps wire rate ~2 req/sec including preflights — comfortably under
+    // any real bucket implementation.
+    const RATE_LIMIT_MS = 500;
 
     const CHART_COLORS = ['var(--chart-1)', 'var(--chart-2)', 'var(--chart-3)', 'var(--chart-4)', 'var(--chart-5)', 'var(--chart-6)'];
 
@@ -800,21 +860,11 @@
       constructor(baseURL, apiKey) {
         this.baseURL = baseURL.replace(/\/+$/, '');
         this.apiKey = apiKey;
-        this.lastRequest = 0;
+        // lastCompleted is the wall-clock time the previous request *finished*,
+        // not when its slot was acquired. The next request waits RATE_LIMIT_MS
+        // from this point — so we never have two fetches in flight at once.
+        this.lastCompleted = 0;
         this.queue = Promise.resolve();
-      }
-
-      // Wait for the next rate-limit slot. Serializing on this.queue means
-      // every caller picks up an exclusive slot before issuing fetch().
-      _slot() {
-        this.queue = this.queue.then(async () => {
-          const since = Date.now() - this.lastRequest;
-          if (since < RATE_LIMIT_MS) {
-            await new Promise(r => setTimeout(r, RATE_LIMIT_MS - since));
-          }
-          this.lastRequest = Date.now();
-        });
-        return this.queue;
       }
 
       async _fetchOnce(endpoint) {
@@ -884,34 +934,56 @@
         } catch (e) { /* ignore */ }
       }
 
-      // Retry on transient failures: TypeError (fetch network/CORS error,
-      // commonly seen when a 429 strips CORS headers) and explicit 429s.
-      // Auth errors and 404s never retry — user action is required.
-      // Pass forceRefresh:true to bypass the localStorage cache.
+      // Strict-sequential request: the entire fetch (including retries) runs
+      // inside the queue chain, so two callers can never have fetches in flight
+      // at the same time. Cache reads happen *outside* the queue — a cache hit
+      // doesn't consume a rate-limit slot.
+      //
+      // Retries on transient failures: TypeError (fetch/CORS error, commonly a
+      // 429 with stripped CORS headers) and explicit 429s. Auth and 404 never
+      // retry — user action is required.
       async request(endpoint, { retries = 2, forceRefresh = false } = {}) {
         if (!forceRefresh) {
           const cached = this._readCache(endpoint);
           if (cached) return { ...cached.data, _cachedAt: cached.timestamp };
         }
 
-        let lastErr;
-        for (let attempt = 0; attempt <= retries; attempt++) {
-          await this._slot();
-          try {
-            const data = await this._fetchOnce(endpoint);
-            this._writeCache(endpoint, data);
-            return data;
-          } catch (e) {
-            lastErr = e;
-            if (e.kind === 'auth' || e.kind === 'notfound') throw e;
-            const transient = (e instanceof TypeError) || e.kind === 'rate';
-            if (!transient || attempt === retries) throw e;
-            // Backoff: 500ms, 1500ms, 3500ms…
-            const wait = 500 + attempt * 1000 + Math.random() * 200;
-            await new Promise(r => setTimeout(r, wait));
+        const run = async () => {
+          // Wait for the gap from the previous *completion*.
+          const since = Date.now() - this.lastCompleted;
+          if (since < RATE_LIMIT_MS) {
+            await new Promise(r => setTimeout(r, RATE_LIMIT_MS - since));
           }
-        }
-        throw lastErr;
+          try {
+            let lastErr;
+            for (let attempt = 0; attempt <= retries; attempt++) {
+              try {
+                const data = await this._fetchOnce(endpoint);
+                this._writeCache(endpoint, data);
+                return data;
+              } catch (e) {
+                lastErr = e;
+                if (e.kind === 'auth' || e.kind === 'notfound') throw e;
+                const transient = (e instanceof TypeError) || e.kind === 'rate';
+                if (!transient || attempt === retries) throw e;
+                // Backoff: ~700ms, ~1700ms… (with jitter)
+                const wait = 700 + attempt * 1000 + Math.random() * 200;
+                await new Promise(r => setTimeout(r, wait));
+              }
+            }
+            throw lastErr;
+          } finally {
+            this.lastCompleted = Date.now();
+          }
+        };
+
+        // Chain onto the queue so this run waits for any previous run to finish.
+        const prev = this.queue;
+        const next = prev.then(run, run); // run regardless of upstream success
+        // Keep the chain alive even if this caller's promise rejects, so the
+        // next caller doesn't inherit the rejection.
+        this.queue = next.catch(() => {});
+        return next;
       }
     }
 
@@ -940,7 +1012,7 @@
     // Used to lazy-trigger fetches for below-the-fold cards so the initial
     // load is small (3 requests) and later tiers fetch on scroll.
     // ============================================================
-    function useInView({ threshold = 0.1, rootMargin = '100px' } = {}) {
+    function useInView({ threshold = 0.1, rootMargin = '0px' } = {}) {
       const ref = useRef(null);
       const [inView, setInView] = useState(false);
       useEffect(() => {
@@ -1225,7 +1297,10 @@
       return (
         <div className="card fade-in">
           <div className="card-header">
-            <h3 className="card-title">Top pages</h3>
+            <div>
+              <h3 className="card-title">Top pages</h3>
+              <p className="card-subtitle">Click any page to see its referrers</p>
+            </div>
             <span className="card-subtitle">{items.length} paths</span>
           </div>
           {!items.length ? (
@@ -1247,6 +1322,7 @@
                       aria-expanded={isOpen}
                     >
                       <span className="row-name truncate" title={p.path}>
+                        <span className={'row-chevron' + (isOpen ? ' open' : '')} aria-hidden="true">▸</span>
                         {p.path}
                         {p.title ? <span className="muted"> — {p.title}</span> : null}
                       </span>
@@ -1463,6 +1539,7 @@
       const [menuOpen, setMenuOpen] = useState(false);
       const [refreshTick, setRefreshTick] = useState(0);
       const [lastUpdatedAt, setLastUpdatedAt] = useState(null);
+      const [progress, setProgress] = useState({ fired: 0, done: 0 });
       const [, setNowTick] = useState(0); // forces re-render so "Updated Xs ago" ticks
 
       const client = useMemo(() => new APIClient(config.baseURL, config.apiKey), [config]);
@@ -1475,18 +1552,39 @@
         [start, end]
       );
 
+      // Single source of truth for the URL of each data key. Used by tiers and
+      // by per-card retry so they can't drift out of sync.
+      const endpointFor = useCallback((key) => {
+        switch (key) {
+          case 'total':     return q('/api/v0/stats/total');
+          case 'hits':      return q(`/api/v0/stats/hits?limit=20&group=${group}`);
+          case 'browsers':  return q('/api/v0/stats/browsers');
+          case 'systems':   return q('/api/v0/stats/systems');
+          case 'sizes':     return q('/api/v0/stats/sizes');
+          case 'locations': return q('/api/v0/stats/locations');
+          case 'languages': return q('/api/v0/stats/languages');
+          case 'campaigns': return q('/api/v0/stats/campaigns');
+          default: return null;
+        }
+      }, [q, group]);
+
       // Reset state when range or refresh changes — cache makes re-fetch fast on repeats.
       useEffect(() => {
         setData({});
         setErrors({});
         setPrevTotal(null);
+        setProgress({ fired: 0, done: 0 });
       }, [start, end, refreshTick]);
 
-      // Generic tier runner. Each entry is [stateKey, url]. Errors and data
-      // are tracked per key so a single failure never bricks the dashboard.
-      const runTier = useCallback(async (calls, cancelledRef) => {
-        for (const [k, url] of calls) {
+      // Generic tier runner. Each entry is a key. Errors and data are tracked
+      // per key so a single failure never bricks the dashboard. Progress
+      // counters drive the topbar "Loading X of Y…" indicator.
+      const runTier = useCallback(async (keys, cancelledRef) => {
+        for (const k of keys) {
           if (cancelledRef.current) return;
+          const url = endpointFor(k);
+          if (!url) continue;
+          setProgress(p => ({ ...p, fired: p.fired + 1 }));
           try {
             const res = await client.request(url);
             if (cancelledRef.current) return;
@@ -1501,69 +1599,83 @@
               continue;
             }
             setErrors(prev => ({ ...prev, [k]: e.message || 'Failed' }));
+          } finally {
+            if (!cancelledRef.current) setProgress(p => ({ ...p, done: p.done + 1 }));
           }
         }
-      }, [client]);
+      }, [client, endpointFor]);
 
-      // Tier 1 — always fires. KPIs, traffic chart, top pages, referrers.
+      // Single-key retry — fires one request through the queue with cache bypass.
+      // By the time the user notices a failed card and clicks retry, the bucket
+      // has refilled, and a single isolated request is very likely to succeed.
+      const retryKey = useCallback(async (key) => {
+        const url = endpointFor(key);
+        if (!url) return;
+        setErrors(prev => { if (!(key in prev)) return prev; const n = {...prev}; delete n[key]; return n; });
+        setProgress(p => ({ ...p, fired: p.fired + 1 }));
+        try {
+          const res = await client.request(url, { forceRefresh: true });
+          setData(prev => ({ ...prev, [key]: res }));
+        } catch (e) {
+          if (e.kind === 'auth') { setAuthErr(e); return; }
+          setErrors(prev => ({ ...prev, [key]: e.message || 'Failed' }));
+        } finally {
+          setProgress(p => ({ ...p, done: p.done + 1 }));
+        }
+      }, [client, endpointFor]);
+
+      // Tier 1 — always fires. KPIs, traffic chart, top pages.
       // Plus the previous-period total for the trend KPI.
       useEffect(() => {
         const cancelledRef = { current: false };
         (async () => {
-          await runTier([
-            ['total', q('/api/v0/stats/total')],
-            ['hits',  q(`/api/v0/stats/hits?limit=20&group=${group}`)],
-          ], cancelledRef);
+          await runTier(['total', 'hits'], cancelledRef);
           if (cancelledRef.current) return;
           setLastUpdatedAt(Date.now());
 
           // Previous-period total for trend (best-effort, doesn't block UI)
+          setProgress(p => ({ ...p, fired: p.fired + 1 }));
           try {
             const prev = getPreviousRange(start, end);
             const prevRes = await client.request(
               `/api/v0/stats/total?start=${encodeURIComponent(prev.start)}&end=${encodeURIComponent(prev.end)}`
             );
             if (!cancelledRef.current) setPrevTotal(prevRes.total ?? prevRes.total_utc ?? null);
-          } catch (e) { if (!cancelledRef.current) setPrevTotal(null); }
+          } catch (e) {
+            if (!cancelledRef.current) setPrevTotal(null);
+          } finally {
+            if (!cancelledRef.current) setProgress(p => ({ ...p, done: p.done + 1 }));
+          }
         })();
         return () => { cancelledRef.current = true; };
-      }, [client, q, group, start, end, refreshTick, runTier]);
+      }, [client, start, end, refreshTick, runTier]);
 
       // Tier 2 — donut row (browsers / OS / devices). Lazy on visibility.
       const [donutRowRef, donutInView] = useInView();
       useEffect(() => {
         if (!donutInView) return;
         const cancelledRef = { current: false };
-        runTier([
-          ['browsers', q('/api/v0/stats/browsers')],
-          ['systems',  q('/api/v0/stats/systems')],
-          ['sizes',    q('/api/v0/stats/sizes')],
-        ], cancelledRef);
+        runTier(['browsers', 'systems', 'sizes'], cancelledRef);
         return () => { cancelledRef.current = true; };
-      }, [donutInView, q, refreshTick, runTier]);
+      }, [donutInView, refreshTick, runTier]);
 
       // Tier 3 — geo row (countries / languages). Lazy on visibility.
       const [geoRowRef, geoInView] = useInView();
       useEffect(() => {
         if (!geoInView) return;
         const cancelledRef = { current: false };
-        runTier([
-          ['locations', q('/api/v0/stats/locations')],
-          ['languages', q('/api/v0/stats/languages')],
-        ], cancelledRef);
+        runTier(['locations', 'languages'], cancelledRef);
         return () => { cancelledRef.current = true; };
-      }, [geoInView, q, refreshTick, runTier]);
+      }, [geoInView, refreshTick, runTier]);
 
       // Tier 4 — campaigns. Lazy on visibility.
       const [campaignsRef, campaignsInView] = useInView();
       useEffect(() => {
         if (!campaignsInView) return;
         const cancelledRef = { current: false };
-        runTier([
-          ['campaigns', q('/api/v0/stats/campaigns')],
-        ], cancelledRef);
+        runTier(['campaigns'], cancelledRef);
         return () => { cancelledRef.current = true; };
-      }, [campaignsInView, q, refreshTick, runTier]);
+      }, [campaignsInView, refreshTick, runTier]);
 
       // Tick every 10s so the "Updated Xs ago" label stays current.
       useEffect(() => {
@@ -1622,23 +1734,6 @@
           .sort(([a], [b]) => a.localeCompare(b))
           .map(([ts, count]) => ({ ts, count }));
       }, [data, group]);
-
-      // Aggregate top referrers across all paths from /hits payload (best-effort).
-      // /hits returns ref counts per path; for an aggregate referrer card we fall back to
-      // an empty list when the payload lacks them. Users can drill into specific pages
-      // for accurate referrer detail.
-      const aggregatedRefs = useMemo(() => {
-        if (!data || !data.hits || !Array.isArray(data.hits.hits)) return [];
-        const map = new Map();
-        for (const p of data.hits.hits) {
-          if (Array.isArray(p.refs)) {
-            for (const r of p.refs) {
-              map.set(r.name || '(direct)', (map.get(r.name || '(direct)') || 0) + (r.count || 0));
-            }
-          }
-        }
-        return Array.from(map.entries()).map(([name, count]) => ({ name, count }));
-      }, [data]);
 
       const totalNum = data?.total?.total ?? data?.total?.total_utc ?? 0;
       const trend = useMemo(() => {
@@ -1722,12 +1817,16 @@
                 {theme === 'dark' ? '☀' : '🌙'}
               </button>
 
-              {lastUpdatedAt && (
+              {progress.fired > progress.done ? (
+                <span className="freshness loading" title="Fetching from GoatCounter…">
+                  Loading {progress.done + 1} of {progress.fired}…
+                </span>
+              ) : lastUpdatedAt ? (
                 <span
                   className="freshness"
                   title={new Date(lastUpdatedAt).toLocaleString()}
                 >Updated {relativeTime(lastUpdatedAt)}</span>
-              )}
+              ) : null}
 
               <div className="menu-wrap" ref={menuRef}>
                 <button
@@ -1758,11 +1857,7 @@
 
           {hasAnyError && (
             <div className="error-banner" role="alert" style={{marginBottom:16}}>
-              Couldn't load: <strong>{failedKeys.join(', ')}</strong>. The rest of the dashboard is shown below.
-              <button
-                onClick={() => setRefreshTick(t => t+1)}
-                style={{marginLeft:12, color:'var(--accent)', textDecoration:'underline', background:'none', border:'none', cursor:'pointer'}}
-              >Retry</button>
+              Some sections couldn't load: <strong>{failedKeys.join(', ')}</strong>. Retry each card individually below — single requests usually succeed once the rate limit refills.
             </div>
           )}
 
@@ -1771,11 +1866,19 @@
           {(() => {
             const ready = (k) => data && (data[k] !== undefined);
             const failed = (k) => errors[k] !== undefined;
-            const ErrCard = ({title}) => (
+            const ErrCard = ({ title, onRetry }) => (
               <div className="card fade-in">
                 <div className="card-header"><h3 className="card-title">{title}</h3></div>
-                <div className="empty-state" style={{color:'var(--danger)'}}>
-                  Couldn't load.
+                <div className="card-error-row">
+                  <span>Failed to load</span>
+                  {onRetry && (
+                    <button
+                      onClick={onRetry}
+                      className="retry-btn"
+                      title="Retry this card"
+                      aria-label={`Retry ${title}`}
+                    >↻ Retry</button>
+                  )}
                 </div>
               </div>
             );
@@ -1818,14 +1921,15 @@
 
                 {/* Traffic chart */}
                 <section style={{marginBottom: 20}}>
-                  {failed('hits') ? <ErrCard title="Visitors over time" />
+                  {failed('hits') ? <ErrCard title="Visitors over time" onRetry={() => retryKey('hits')} />
                     : ready('hits') ? <TrafficChart series={trafficSeries} group={group} />
                     : <SkeletonCard h={280} />}
                 </section>
 
-                {/* Top pages + Referrers */}
-                <section className="grid grid-2" style={{marginBottom: 20}}>
-                  {failed('hits') ? <ErrCard title="Top pages" />
+                {/* Top pages — full width. Aggregate referrers aren't returned by
+                    GoatCounter at the dashboard level; click any page to see its referrers. */}
+                <section style={{marginBottom: 20}}>
+                  {failed('hits') ? <ErrCard title="Top pages" onRetry={() => retryKey('hits')} />
                     : ready('hits') ? (
                       <TopPagesCard
                         paths={data?.hits?.hits || []}
@@ -1834,33 +1938,24 @@
                         dateRange={dateRange}
                       />
                     ) : <SkeletonCard />}
-                  {failed('hits') ? <ErrCard title="Top referrers" />
-                    : ready('hits') ? (
-                      <TopListCard
-                        title="Top referrers"
-                        subtitle="Aggregated across pages"
-                        stats={aggregatedRefs.length ? aggregatedRefs : null}
-                        formatName={(x) => x.name === '(direct)' ? <span className="muted">(direct)</span> : x.name}
-                      />
-                    ) : <SkeletonCard />}
                 </section>
 
                 {/* Donuts: browsers / OS / devices — lazy on visibility (Tier 2) */}
                 <section ref={donutRowRef} className="grid grid-3" style={{marginBottom: 20}}>
-                  {failed('browsers') ? <ErrCard title="Browsers" />
+                  {failed('browsers') ? <ErrCard title="Browsers" onRetry={() => retryKey('browsers')} />
                     : ready('browsers') ? <DonutCard title="Browsers" stats={data?.browsers?.stats} />
                     : <SkeletonCard />}
-                  {failed('systems') ? <ErrCard title="Operating systems" />
+                  {failed('systems') ? <ErrCard title="Operating systems" onRetry={() => retryKey('systems')} />
                     : ready('systems') ? <DonutCard title="Operating systems" stats={data?.systems?.stats} />
                     : <SkeletonCard />}
-                  {failed('sizes') ? <ErrCard title="Devices" />
+                  {failed('sizes') ? <ErrCard title="Devices" onRetry={() => retryKey('sizes')} />
                     : ready('sizes') ? <DonutCard title="Devices" stats={data?.sizes?.stats} deviceMode />
                     : <SkeletonCard />}
                 </section>
 
                 {/* Countries + Languages — lazy on visibility (Tier 3) */}
                 <section ref={geoRowRef} className="grid grid-2" style={{marginBottom: 20}}>
-                  {failed('locations') ? <ErrCard title="Countries" />
+                  {failed('locations') ? <ErrCard title="Countries" onRetry={() => retryKey('locations')} />
                     : ready('locations') ? (
                       <TopListCard
                         title="Countries"
@@ -1868,7 +1963,7 @@
                         prefix={(x) => <span style={{marginRight:8, fontSize:'1rem'}}>{flagFor(x.name)}</span>}
                       />
                     ) : <SkeletonCard />}
-                  {failed('languages') ? <ErrCard title="Languages" />
+                  {failed('languages') ? <ErrCard title="Languages" onRetry={() => retryKey('languages')} />
                     : ready('languages') ? <TopListCard title="Languages" stats={data?.languages?.stats} />
                     : <SkeletonCard />}
                 </section>
