@@ -238,6 +238,71 @@
     }
     .help-box strong { color: var(--text); }
 
+    /* "or" divider on the connect screen between Connect and Try Demo */
+    .or-divider {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 18px 0 14px 0;
+      color: var(--text-muted);
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .or-divider::before,
+    .or-divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    .btn-demo {
+      background: var(--bg-surface-2);
+      color: var(--text);
+      border: 1px solid var(--border);
+      width: 100%;
+      padding: 12px 16px;
+      font-size: 0.95rem;
+      border-radius: 8px;
+      transition: all 0.15s ease;
+    }
+    .btn-demo:hover:not(:disabled) {
+      background: var(--accent-dim);
+      border-color: var(--accent);
+      color: var(--accent);
+      transform: translateY(-1px);
+    }
+    .btn-demo:active { transform: translateY(0); }
+    .demo-subtitle {
+      text-align: center;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      margin: 8px 0 0 0;
+    }
+
+    /* Demo banner: thin strip above the dashboard reminding users the data is sample */
+    .demo-banner {
+      background: var(--bg-surface-2);
+      border-bottom: 1px solid var(--border);
+      padding: 8px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      font-size: 0.82rem;
+      color: var(--text-secondary);
+      flex-wrap: wrap;
+    }
+    .demo-banner-link {
+      color: var(--accent);
+      font-weight: 500;
+      background: transparent;
+      padding: 0;
+      font-size: 0.82rem;
+    }
+    .demo-banner-link:hover { text-decoration: underline; color: var(--accent-hover); }
+
     .error-banner {
       background: rgba(239, 68, 68, 0.1);
       border: 1px solid rgba(239, 68, 68, 0.3);
@@ -955,6 +1020,375 @@
     }
 
     // ============================================================
+    // DEMO MODE — sample data for the "Try Demo" button on the connect screen.
+    // Static weights (relative proportions) are scaled to a per-range visitor
+    // total inside buildDemoData(). The shape of the output exactly matches
+    // the GoatCounter API responses the dashboard already consumes — same
+    // field names, same nesting — so it's a drop-in replacement for the
+    // fetched payloads. Generated only on demand (when the user clicks
+    // "Try Demo" or switches the date range in demo mode).
+    // ============================================================
+
+    // Top pages with relative weights. Used to distribute pageviews. Counts
+    // in the spec are advisory; the generator scales these proportionally.
+    const DEMO_PATHS = [
+      { path: '/', title: 'Home', weight: 4231 },
+      { path: '/blog/building-distributed-systems-at-scale', title: 'Building Distributed Systems at Scale', weight: 3847 },
+      { path: '/blog/mcp-server-production-guide', title: 'How I Built a Production MCP Server', weight: 2156 },
+      { path: '/blog/rate-limiting-lessons', title: 'Rate Limiting Lessons from GoatCounter\'s API', weight: 1893 },
+      { path: '/projects', title: 'Projects', weight: 1247 },
+      { path: '/blog/neo4j-rbac-graph-permissions', title: 'Graph-Based RBAC with Neo4j', weight: 987 },
+      { path: '/blog/dag-pipeline-architecture', title: 'Designing a DAG Pipeline Engine', weight: 876 },
+      { path: '/blog/llm-fallback-patterns', title: 'LLM Provider Fallback Patterns', weight: 743 },
+      { path: '/about', title: 'About', weight: 612 },
+      { path: '/blog/algolia-search-analytics', title: 'Search Analytics with Algolia + S3 + Athena', weight: 534 },
+      { path: '/blog/sse-streaming-guide', title: 'SSE Streaming for AI Features', weight: 423 },
+      { path: '/blog/zero-downtime-reindexing', title: 'Zero-Downtime Reindexing at Scale', weight: 387 },
+      { path: '/resume', title: 'Resume', weight: 298 },
+      { path: '/blog/fastapi-async-patterns', title: 'FastAPI Async Patterns for Production', weight: 267 },
+      { path: '/contact', title: 'Contact', weight: 189 },
+    ];
+
+    // Per-page referrer drill-down. Keyed by path string (not path_id since
+    // ids are generated). Used by TopPagesCard when demoMode is on.
+    const DEMO_REFS = {
+      '/': [
+        { name: '(direct)', count: 1245 },
+        { name: 'google.com', count: 876 },
+        { name: 'twitter.com', count: 412 },
+        { name: 'linkedin.com', count: 287 },
+        { name: 'github.com', count: 198 },
+      ],
+      '/blog/building-distributed-systems-at-scale': [
+        { name: 'news.ycombinator.com', count: 1847 },
+        { name: 'reddit.com', count: 823 },
+        { name: 'google.com', count: 412 },
+        { name: 'twitter.com', count: 298 },
+        { name: '(direct)', count: 267 },
+        { name: 'linkedin.com', count: 134 },
+        { name: 'dev.to', count: 66 },
+      ],
+      '/blog/mcp-server-production-guide': [
+        { name: 'google.com', count: 687 },
+        { name: 'reddit.com', count: 534 },
+        { name: 'twitter.com', count: 423 },
+        { name: '(direct)', count: 312 },
+        { name: 'news.ycombinator.com', count: 134 },
+        { name: 'linkedin.com', count: 66 },
+      ],
+      '/blog/rate-limiting-lessons': [
+        { name: 'news.ycombinator.com', count: 743 },
+        { name: 'reddit.com', count: 412 },
+        { name: 'google.com', count: 298 },
+        { name: '(direct)', count: 234 },
+        { name: 'twitter.com', count: 156 },
+        { name: 'lobste.rs', count: 50 },
+      ],
+      '/projects': [
+        { name: '(direct)', count: 543 },
+        { name: 'github.com', count: 412 },
+        { name: 'google.com', count: 198 },
+        { name: 'linkedin.com', count: 94 },
+      ],
+      '/blog/neo4j-rbac-graph-permissions': [
+        { name: 'google.com', count: 412 },
+        { name: 'reddit.com', count: 234 },
+        { name: '(direct)', count: 187 },
+        { name: 'twitter.com', count: 98 },
+        { name: 'dev.to', count: 56 },
+      ],
+      '/blog/dag-pipeline-architecture': [
+        { name: 'google.com', count: 387 },
+        { name: 'twitter.com', count: 198 },
+        { name: 'reddit.com', count: 156 },
+        { name: '(direct)', count: 135 },
+      ],
+      '/blog/llm-fallback-patterns': [
+        { name: 'twitter.com', count: 312 },
+        { name: 'google.com', count: 234 },
+        { name: 'news.ycombinator.com', count: 123 },
+        { name: '(direct)', count: 74 },
+      ],
+    };
+
+    const DEMO_BROWSERS = [
+      { name: 'Chrome',  weight: 8127 },
+      { name: 'Safari',  weight: 3219 },
+      { name: 'Firefox', weight: 2341 },
+      { name: 'Edge',    weight: 876 },
+      { name: 'Arc',     weight: 198 },
+      { name: 'Brave',   weight: 112 },
+    ];
+
+    const DEMO_SYSTEMS = [
+      { name: 'macOS',     weight: 5934 },
+      { name: 'Windows',   weight: 4123 },
+      { name: 'iOS',       weight: 2347 },
+      { name: 'Android',   weight: 1567 },
+      { name: 'Linux',     weight: 834 },
+      { name: 'Chrome OS', weight: 68 },
+    ];
+
+    // Sizes use the `id` field with empty `name`, matching the real API shape
+    // we already handle (DEVICE_LABELS in DonutCard).
+    const DEMO_SIZES = [
+      { id: 'desktop',   weight: 9234 },
+      { id: 'phone',     weight: 4123 },
+      { id: 'tablet',    weight: 876 },
+      { id: 'desktophd', weight: 534 },
+      { id: 'unknown',   weight: 106 },
+    ];
+
+    const DEMO_LANGUAGES = [
+      { name: 'English',     weight: 11234 },
+      { name: 'German',      weight: 1123 },
+      { name: 'Japanese',    weight: 487 },
+      { name: 'French',      weight: 423 },
+      { name: 'Portuguese',  weight: 312 },
+      { name: 'Spanish',     weight: 267 },
+      { name: 'Korean',      weight: 198 },
+      { name: 'Chinese',     weight: 156 },
+      { name: 'Dutch',       weight: 134 },
+      { name: 'Swedish',     weight: 98 },
+      { name: '(unknown)',   weight: 441 },
+    ];
+
+    const DEMO_CAMPAIGNS = [
+      { name: 'hackernews-apr',     weight: 1847 },
+      { name: 'reddit-selfhosted',  weight: 823 },
+      { name: 'twitter-thread',     weight: 534 },
+      { name: 'linkedin-post',      weight: 312 },
+      { name: 'devto-article',      weight: 198 },
+      { name: 'newsletter-weekly',  weight: 156 },
+    ];
+
+    // Country list with weights. Sorted high → low so we can pick the top N
+    // for the smaller date ranges (today: 15, 7d: 25, 30d/90d/custom: all 40).
+    // Geographic spread covers all continents and the major tech hubs.
+    const DEMO_COUNTRIES = [
+      { name: 'United States',        weight: 5423 },
+      { name: 'India',                weight: 2134 },
+      { name: 'Germany',              weight: 1247 },
+      { name: 'United Kingdom',       weight: 987 },
+      { name: 'Canada',               weight: 743 },
+      { name: 'France',               weight: 534 },
+      { name: 'Japan',                weight: 487 },
+      { name: 'Netherlands',          weight: 423 },
+      { name: 'Australia',            weight: 387 },
+      { name: 'Brazil',               weight: 312 },
+      { name: 'Sweden',               weight: 267 },
+      { name: 'Poland',               weight: 234 },
+      { name: 'South Korea',          weight: 198 },
+      { name: 'Spain',                weight: 176 },
+      { name: 'Singapore',            weight: 156 },
+      { name: 'Indonesia',            weight: 134 },
+      { name: 'Italy',                weight: 123 },
+      { name: 'Switzerland',          weight: 112 },
+      { name: 'China',                weight: 98 },
+      { name: 'Israel',               weight: 87 },
+      { name: 'Finland',              weight: 76 },
+      { name: 'Norway',               weight: 67 },
+      { name: 'Ireland',              weight: 56 },
+      { name: 'Denmark',              weight: 45 },
+      { name: 'Austria',              weight: 43 },
+      { name: 'Portugal',             weight: 38 },
+      { name: 'Belgium',              weight: 34 },
+      { name: 'New Zealand',          weight: 32 },
+      { name: 'Mexico',               weight: 28 },
+      { name: 'Argentina',            weight: 23 },
+      { name: 'Ukraine',              weight: 21 },
+      { name: 'Vietnam',              weight: 19 },
+      { name: 'Taiwan',               weight: 18 },
+      { name: 'Czechia',              weight: 15 },
+      { name: 'Romania',              weight: 14 },
+      { name: 'Philippines',          weight: 12 },
+      { name: 'Thailand',             weight: 11 },
+      { name: 'South Africa',         weight: 9 },
+      { name: 'Colombia',             weight: 8 },
+      { name: 'Nigeria',              weight: 7 },
+    ];
+
+    // Distribute a total across weighted entries. Last entry absorbs the
+    // rounding remainder so the sum is exact.
+    function distributeByWeight(items, total, copyKeys) {
+      const totalW = items.reduce((s, x) => s + x.weight, 0);
+      const out = items.map((x) => {
+        const row = { count: Math.max(0, Math.round(total * x.weight / totalW)) };
+        for (const k of copyKeys) if (x[k] !== undefined) row[k] = x[k];
+        if (!('name' in row)) row.name = '';
+        return row;
+      });
+      const sum = out.reduce((s, r) => s + r.count, 0);
+      if (out.length) out[0].count += (total - sum);
+      return out;
+    }
+
+    // Daily traffic shape: weekday/weekend pattern + viral spikes + slight
+    // upward trend. Returns N day-strings with relative weights summing to ~1.
+    // viralIndices is an array of zero-based offsets (from the oldest day)
+    // that should be amplified to simulate HN/Reddit hits.
+    function demoDailyShape(numDays, viralIndices = [], viralMagnitudes = []) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const out = [];
+      for (let i = numDays - 1; i >= 0; i--) {
+        const d = new Date(today);
+        d.setDate(d.getDate() - i);
+        const dow = d.getDay();
+        const isWeekend = dow === 0 || dow === 6;
+        let w = isWeekend ? 0.55 + Math.random() * 0.15 : 0.95 + Math.random() * 0.20;
+        // Gradual upward trend: newer days lift slightly. ~30% over 30 days.
+        const dayIdx = numDays - 1 - i;
+        w *= 1 + dayIdx * (0.30 / Math.max(1, numDays - 1));
+        // Viral spikes (architect: keep the spikes — they're the story)
+        const vi = viralIndices.indexOf(dayIdx);
+        if (vi !== -1) w *= viralMagnitudes[vi] || 2.5;
+        out.push({ day: d.toISOString().slice(0, 10), weight: w });
+      }
+      return out;
+    }
+
+    // 24-hour shape: low overnight, ramp into morning peak, lunch dip,
+    // afternoon peak, gentle wind-down.
+    function demoHourlyShape() {
+      const profile = [
+        2, 2, 1, 1, 2, 4,        // 00-05 overnight
+        8, 14, 22, 30, 42, 48,   // 06-11 morning ramp
+        34, 28, 38, 50, 45, 32,  // 12-17 lunch dip + afternoon peak
+        25, 20, 18, 15, 12, 8,   // 18-23 wind-down
+      ];
+      // Add ±20% noise but keep the curve recognizable.
+      return profile.map(v => v * (0.85 + Math.random() * 0.30));
+    }
+
+    // Weekly shape for the 90d view: 13 weeks with growth from low to high.
+    function demoWeeklyShape(numWeeks) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      // Snap to most recent Sunday so weekly buckets align.
+      today.setDate(today.getDate() - today.getDay());
+      const out = [];
+      for (let i = numWeeks - 1; i >= 0; i--) {
+        const d = new Date(today);
+        d.setDate(d.getDate() - i * 7);
+        const trend = 0.7 + (numWeeks - 1 - i) * (0.6 / Math.max(1, numWeeks - 1)); // 0.7 → 1.3
+        const noise = 0.92 + Math.random() * 0.16;
+        out.push({ day: d.toISOString().slice(0, 10), weight: trend * noise });
+      }
+      return out;
+    }
+
+    // Allocate a per-bucket time-series proportional to the supplied weights.
+    // Returns an array of integers summing to `total` (last entry absorbs
+    // rounding remainder).
+    function allocateByWeights(weights, total) {
+      const sumW = weights.reduce((s, w) => s + w, 0);
+      const out = weights.map(w => Math.max(0, Math.round(total * w / sumW)));
+      const got = out.reduce((s, v) => s + v, 0);
+      if (out.length) out[out.length - 1] += (total - got);
+      return out;
+    }
+
+    // Range scaling. Numbers calibrated to feel realistic for a "successful
+    // technical blog" — see spec section 5/6.
+    const DEMO_RANGE_TOTALS = {
+      'today': { visitors: 487,   prev: 412,    days: 1,  group: 'hour'  },
+      '7d':    { visitors: 3842,  prev: 3156,   days: 7,  group: 'day'   },
+      '30d':   { visitors: 14873, prev: 11249,  days: 30, group: 'day'   },
+      '90d':   { visitors: 41247, prev: 28934,  days: 90, group: 'week'  },
+    };
+    // Custom date range in demo mode falls back to 30d numbers — the demo
+    // isn't meant to be queryable, just visually representative.
+    const DEMO_CUSTOM_FALLBACK = '30d';
+
+    // Build a complete demo payload for the given preset. Returns
+    // { data, prevTotal } where `data` mirrors the keys the Dashboard
+    // populates from its real fetches (total/hits/browsers/...).
+    function buildDemoData(preset) {
+      const key = (preset === 'custom' || !DEMO_RANGE_TOTALS[preset])
+        ? DEMO_CUSTOM_FALLBACK
+        : preset;
+      const range = DEMO_RANGE_TOTALS[key];
+      const visitors = range.visitors;
+      // Pageviews exceed visitors (multi-page sessions). ~1.25 pages/visit.
+      const pageviews = Math.round(visitors * 1.25);
+
+      // Build the time-series shape first — we need the per-bucket weights
+      // so we can distribute each path's count across the same buckets.
+      let buckets;            // array of { day, weight, hourly? }
+      let hourlyMode = false;
+      if (range.group === 'hour') {
+        const todayStr = new Date().toISOString().slice(0, 10);
+        const hourly = demoHourlyShape();
+        buckets = [{ day: todayStr, hourly }];
+        hourlyMode = true;
+      } else if (range.group === 'week') {
+        buckets = demoWeeklyShape(13);
+      } else {
+        // Daily. For the 30-day view, two viral spikes (HN + Reddit).
+        const viralIdx = key === '30d' ? [7, 21] : (key === '7d' ? [3] : []);
+        const viralMag = key === '30d' ? [3.0, 1.9] : (key === '7d' ? [1.5] : []);
+        buckets = demoDailyShape(range.days, viralIdx, viralMag);
+      }
+
+      // Allocate the aggregate pageview total across the buckets so the
+      // visible traffic chart sums to `pageviews`.
+      let aggregatePerBucket;
+      if (hourlyMode) {
+        aggregatePerBucket = allocateByWeights(buckets[0].hourly, pageviews);
+      } else {
+        aggregatePerBucket = allocateByWeights(buckets.map(b => b.weight), pageviews);
+      }
+
+      // Path counts: distribute pageviews across DEMO_PATHS by weight.
+      const pathRows = distributeByWeight(DEMO_PATHS, pageviews, ['path', 'title']);
+      // Then for each path, distribute its count across the same time buckets
+      // proportionally to the aggregate. This means the trafficSeries memo
+      // (which sums each bucket across paths) naturally reproduces the
+      // aggregate curve.
+      const paths = pathRows.map((p, i) => {
+        const path_id = 1001 + i;
+        let stats;
+        if (hourlyMode) {
+          // Single bucket day with a 24-element hourly array.
+          const dayStr = buckets[0].day;
+          const pathHourly = allocateByWeights(buckets[0].hourly, p.count);
+          stats = [{ day: dayStr, hourly: pathHourly }];
+        } else {
+          const pathDailies = allocateByWeights(buckets.map(b => b.weight), p.count);
+          stats = buckets.map((b, j) => ({ day: b.day, daily: pathDailies[j] }));
+        }
+        return {
+          path: p.path,
+          title: p.title,
+          path_id,
+          count: p.count,
+          event: false,
+          stats,
+        };
+      }).sort((a, b) => b.count - a.count);
+
+      // Country list size shrinks for shorter ranges (less variety in a day).
+      const numCountries = key === 'today' ? 15 : key === '7d' ? 25 : DEMO_COUNTRIES.length;
+      const countriesSubset = DEMO_COUNTRIES.slice(0, numCountries);
+
+      return {
+        data: {
+          total:     { total: visitors, total_utc: visitors, total_events: 0 },
+          hits:      { hits: paths, total: visitors, more: false },
+          browsers:  { stats: distributeByWeight(DEMO_BROWSERS,  visitors, ['name']) },
+          systems:   { stats: distributeByWeight(DEMO_SYSTEMS,   visitors, ['name']) },
+          sizes:     { stats: distributeByWeight(DEMO_SIZES,     visitors, ['id']) },
+          locations: { stats: distributeByWeight(countriesSubset, visitors, ['name']) },
+          languages: { stats: distributeByWeight(DEMO_LANGUAGES, visitors, ['name']) },
+          // Campaigns reflect ~15% of traffic (only some visits are campaign-tagged).
+          campaigns: { stats: distributeByWeight(DEMO_CAMPAIGNS, Math.round(visitors * 0.15), ['name']) },
+        },
+        prevTotal: range.prev,
+      };
+    }
+
+    // ============================================================
     // API CLIENT (rate-limited)
     // ============================================================
     class APIClient {
@@ -1150,7 +1584,7 @@
     // ============================================================
     // CONNECT SCREEN
     // ============================================================
-    function ConnectScreen({ onConnect, initialError }) {
+    function ConnectScreen({ onConnect, onTryDemo, initialError }) {
       const [url, setUrl] = useState('');
       const [key, setKey] = useState('');
       const [busy, setBusy] = useState(false);
@@ -1228,6 +1662,19 @@
             <button type="submit" className="btn btn-primary" disabled={busy}>
               {busy ? 'Connecting…' : 'Connect →'}
             </button>
+
+            {onTryDemo && (
+              <>
+                <div className="or-divider" aria-hidden="true"><span>or</span></div>
+                <button
+                  type="button"
+                  className="btn-demo"
+                  onClick={onTryDemo}
+                  disabled={busy}
+                >📊 Try Demo →</button>
+                <p className="demo-subtitle">See it in action with sample data</p>
+              </>
+            )}
 
             <div className="help-box">
               <strong>How to get an API key:</strong> Log into GoatCounter →
@@ -1366,7 +1813,7 @@
     // ============================================================
     // TOP PAGES (with referrer drill-down)
     // ============================================================
-    function TopPagesCard({ paths, total, client, dateRange }) {
+    function TopPagesCard({ paths, total, client, dateRange, demoMode, demoRefs }) {
       const [expanded, setExpanded] = useState(null);
       const [refData, setRefData] = useState({});
       const [refLoading, setRefLoading] = useState(null);
@@ -1384,6 +1831,12 @@
         if (expanded === item.id) { setExpanded(null); return; }
         setExpanded(item.id);
         if (refData[item.id]) return;
+        // Demo mode: serve refs from the static lookup, no network call.
+        if (demoMode) {
+          const refs = (demoRefs && demoRefs[item.path]) || [];
+          setRefData(prev => ({ ...prev, [item.id]: refs }));
+          return;
+        }
         setRefLoading(item.id);
         try {
           const url = `/api/v0/stats/hits/${item.id}?start=${encodeURIComponent(dateRange.start)}&end=${encodeURIComponent(dateRange.end)}&limit=10`;
@@ -1394,7 +1847,7 @@
         } finally {
           setRefLoading(null);
         }
-      }, [expanded, refData, client, dateRange]);
+      }, [expanded, refData, client, dateRange, demoMode, demoRefs]);
 
       return (
         <div className="card fade-in">
@@ -1793,7 +2246,7 @@
     // ============================================================
     // DASHBOARD
     // ============================================================
-    function Dashboard({ config, onDisconnect, theme, toggleTheme }) {
+    function Dashboard({ config, onDisconnect, theme, toggleTheme, demoMode = false }) {
       const [preset, setPreset] = useState('7d');
       const [customStart, setCustomStart] = useState('');
       const [customEnd, setCustomEnd] = useState('');
@@ -1899,6 +2352,19 @@
         }
       }, [client, endpointFor]);
 
+      // Demo mode: load static fixtures directly, skip the entire fetch
+      // pipeline. Effect fires when range/refreshTick change. All four real
+      // tier effects below early-return when demoMode is on.
+      useEffect(() => {
+        if (!demoMode) return;
+        const demo = buildDemoData(preset);
+        setData(demo.data);
+        setPrevTotal(demo.prevTotal);
+        setErrors({});
+        setProgress({ fired: 0, done: 0 });
+        setLastUpdatedAt(Date.now());
+      }, [demoMode, preset, customStart, customEnd, refreshTick]);
+
       // Tier 1 — always fires. KPIs, traffic chart, top pages, and languages.
       // Plus the previous-period total for the trend KPI.
       // Languages is in Tier 1 (not lazy) because it sits next to Top Pages
@@ -1906,6 +2372,7 @@
       // extra ~500ms (one queue slot) is invisible after the first load
       // since the cache absorbs it.
       useEffect(() => {
+        if (demoMode) return;
         const cancelledRef = { current: false };
         (async () => {
           await runTier(['total', 'hits', 'languages'], cancelledRef);
@@ -1928,36 +2395,36 @@
           }
         })();
         return () => { cancelledRef.current = true; };
-      }, [client, start, end, refreshTick, runTier]);
+      }, [demoMode, client, start, end, refreshTick, runTier]);
 
       // Tier 2 — donut row (browsers / OS / devices). Lazy on visibility.
       const [donutRowRef, donutInView] = useInView();
       useEffect(() => {
-        if (!donutInView) return;
+        if (demoMode || !donutInView) return;
         const cancelledRef = { current: false };
         runTier(['browsers', 'systems', 'sizes'], cancelledRef);
         return () => { cancelledRef.current = true; };
-      }, [donutInView, refreshTick, runTier]);
+      }, [demoMode, donutInView, refreshTick, runTier]);
 
       // Tier 3 — Countries (with map). Lazy on visibility. Languages used
       // to live here too but moved to Tier 1 when the layout paired it with
       // Top Pages.
       const [geoRowRef, geoInView] = useInView();
       useEffect(() => {
-        if (!geoInView) return;
+        if (demoMode || !geoInView) return;
         const cancelledRef = { current: false };
         runTier(['locations'], cancelledRef);
         return () => { cancelledRef.current = true; };
-      }, [geoInView, refreshTick, runTier]);
+      }, [demoMode, geoInView, refreshTick, runTier]);
 
       // Tier 4 — campaigns. Lazy on visibility.
       const [campaignsRef, campaignsInView] = useInView();
       useEffect(() => {
-        if (!campaignsInView) return;
+        if (demoMode || !campaignsInView) return;
         const cancelledRef = { current: false };
         runTier(['campaigns'], cancelledRef);
         return () => { cancelledRef.current = true; };
-      }, [campaignsInView, refreshTick, runTier]);
+      }, [demoMode, campaignsInView, refreshTick, runTier]);
 
       // Tick every 10s so the "Updated Xs ago" label stays current.
       useEffect(() => {
@@ -2040,6 +2507,17 @@
       const presetLabel = (p) => p === '7d' ? 'last 7 days' : p === '30d' ? 'last 30 days' : p === '90d' ? 'last 90 days' : p === 'today' ? 'today' : 'selected range';
 
       return (
+        <>
+          {demoMode && (
+            <div className="demo-banner" role="status">
+              <span>📊 Viewing demo data · Connect your GoatCounter to see real analytics</span>
+              <button
+                onClick={onDisconnect}
+                className="demo-banner-link"
+                title="Exit demo and return to the connect screen"
+              >Connect →</button>
+            </div>
+          )}
         <div className="container">
           {/* Top bar */}
           <header className="topbar">
@@ -2099,7 +2577,9 @@
                 {theme === 'dark' ? '☀' : '🌙'}
               </button>
 
-              {progress.fired > progress.done ? (
+              {demoMode ? (
+                <span className="freshness" title="Static demo dataset — no live API">Demo data</span>
+              ) : progress.fired > progress.done ? (
                 <span className="freshness loading" title="Fetching from GoatCounter…">
                   Loading {progress.done + 1} of {progress.fired}…
                 </span>
@@ -2120,17 +2600,21 @@
                 >⚙</button>
                 {menuOpen && (
                   <div className="menu" role="menu">
-                    <button onClick={() => {
-                      setMenuOpen(false);
-                      APIClient.clearCache(config.baseURL);
-                      setRefreshTick(t => t + 1);
-                    }}>↻ Refresh data</button>
-                    <hr />
+                    {!demoMode && (
+                      <>
+                        <button onClick={() => {
+                          setMenuOpen(false);
+                          APIClient.clearCache(config.baseURL);
+                          setRefreshTick(t => t + 1);
+                        }}>↻ Refresh data</button>
+                        <hr />
+                      </>
+                    )}
                     <button className="danger" onClick={() => {
                       setMenuOpen(false);
-                      APIClient.clearCache(config.baseURL);
+                      if (!demoMode && config.baseURL) APIClient.clearCache(config.baseURL);
                       onDisconnect();
-                    }}>Disconnect</button>
+                    }}>{demoMode ? 'Exit demo' : 'Disconnect'}</button>
                   </div>
                 )}
               </div>
@@ -2221,6 +2705,8 @@
                         total={totalNum}
                         client={client}
                         dateRange={dateRange}
+                        demoMode={demoMode}
+                        demoRefs={demoMode ? DEMO_REFS : null}
                       />
                     ) : <SkeletonCard />}
                   {failed('languages') ? <ErrCard title="Languages" onRetry={() => retryKey('languages')} />
@@ -2282,6 +2768,7 @@
             Powered by <a href="https://goatcounter.com" target="_blank" rel="noopener noreferrer">GoatCounter</a> API
           </footer>
         </div>
+        </>
       );
     }
 
@@ -2298,11 +2785,13 @@
         return null;
       });
       const [authError, setAuthError] = useState('');
+      const [demoMode, setDemoMode] = useState(false);
 
       const handleConnect = useCallback(({ baseURL, apiKey, me }) => {
         const cfg = { baseURL, apiKey, me };
         try { localStorage.setItem(STORAGE_KEY, JSON.stringify(cfg)); } catch (e) {}
         setConfig(cfg);
+        setDemoMode(false);
         setAuthError('');
       }, []);
 
@@ -2316,16 +2805,40 @@
         else setAuthError('');
       }, [config?.baseURL]);
 
-      if (!config) {
-        return <ConnectScreen onConnect={handleConnect} initialError={authError} />;
+      // Demo mode: skip the connect form entirely and feed Dashboard a stub
+      // config. APIClient is created but never called (every fetch effect
+      // early-returns on demoMode). Exiting demo just clears the flag.
+      const handleTryDemo = useCallback(() => {
+        setDemoMode(true);
+        setAuthError('');
+      }, []);
+      const handleExitDemo = useCallback(() => {
+        setDemoMode(false);
+      }, []);
+
+      if (!config && !demoMode) {
+        return (
+          <ConnectScreen
+            onConnect={handleConnect}
+            onTryDemo={handleTryDemo}
+            initialError={authError}
+          />
+        );
       }
+
+      const effectiveConfig = config || {
+        baseURL: '_demo_',
+        apiKey: '_demo_',
+        me: { site: { cname: 'Demo site', code: 'demo' } },
+      };
 
       return (
         <Dashboard
-          config={config}
-          onDisconnect={handleDisconnect}
+          config={effectiveConfig}
+          onDisconnect={demoMode ? handleExitDemo : handleDisconnect}
           theme={theme}
           toggleTheme={toggleTheme}
+          demoMode={demoMode}
         />
       );
     }

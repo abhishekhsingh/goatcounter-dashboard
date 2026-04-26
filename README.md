@@ -8,6 +8,7 @@ A modern, beautiful, open-source alternative dashboard for [GoatCounter](https:/
 
 - 📊 **Interactive charts** — area chart for traffic, donut charts for browsers/OS/devices, horizontal bars for countries and languages.
 - 🗺 **Choropleth world map** — countries shaded by visitor count (square-root scale so small markets stay visible), with hover tooltips and a gradient legend.
+- 🎬 **Demo mode** — one click on the connect screen loads the full dashboard with realistic sample data. No API key, no account, no setup — useful for trying before connecting and for sharing on social/forums.
 - 🌗 **Dark & light mode** — defaults to your system preference, toggle persisted across sessions.
 - 📅 **Flexible date ranges** — Today, 7d, 30d, 90d, or a custom range.
 - 📈 **Period-over-period trends** — every KPI card compares against the previous equivalent window.
@@ -25,7 +26,7 @@ A modern, beautiful, open-source alternative dashboard for [GoatCounter](https:/
 ## 🚀 Quick Start
 
 1. Visit **[abhishekhsingh.github.io/goatcounter-dashboard](https://abhishekhsingh.github.io/goatcounter-dashboard)**.
-2. Enter your GoatCounter URL (e.g. `https://yoursite.goatcounter.com`) and an API key.
+2. Enter your GoatCounter URL (e.g. `https://yoursite.goatcounter.com`) and an API key — or click **Try Demo** to explore with realistic sample data, no account needed.
 3. That's it — your dashboard is live.
 
 ## 🏠 Self-Hosting
@@ -79,6 +80,8 @@ This dashboard talks to GoatCounter's public REST API (`/api/v0`). Requests are 
 
 **Caching:** every successful response is cached in `localStorage` for 60 seconds keyed by `(baseURL, endpoint, params)`. Refresh in the settings menu clears the cache and forces a fresh fetch; Disconnect wipes both the cache and stored credentials.
 
+**Demo mode** bypasses all of the above. The dashboard renders from in-memory sample fixtures — zero requests, zero localStorage writes, zero rate-limit interaction.
+
 ## 🧱 Tech Stack
 
 Five scripts loaded from unpkg, in the order the page needs them:
@@ -92,15 +95,16 @@ Plus:
 
 - **Inter** + **JetBrains Mono** from Google Fonts
 - Plain CSS with custom properties for theming — no Tailwind, no preprocessor, no bundler
-- One generated static asset: `assets/world-map.js` (~78 KB raw / ~27 KB gzipped) — country path data for the choropleth, regenerated only when the underlying dataset changes via `scripts/build-world-map.js`
+- One generated static asset: `assets/world-map.js` — country path data for the choropleth, regenerated only when the underlying dataset changes via `scripts/build-world-map.js`
 
-The dashboard itself is a single `index.html` (~2300 lines including CSS, React components, and inline comments). No runtime build step.
+The dashboard itself is a single `index.html`. No runtime build step.
 
 ## 🧭 Project Status
 
 Working today:
 
 - ✅ Connect / disconnect with persisted credentials
+- ✅ Demo mode with realistic sample data (no account needed)
 - ✅ All 9 GoatCounter stat endpoints integrated
 - ✅ Period-over-period trend on the visitors KPI
 - ✅ Drill-down referrers per page (click any row in Top Pages)
