@@ -378,18 +378,17 @@
     .grid-kpis  { grid-template-columns: repeat(4, 1fr); }
     .grid-2     { grid-template-columns: 1fr 1fr; }
     .grid-3     { grid-template-columns: repeat(3, 1fr); }
-    /* 2:1 split for the geo row — Countries (with embedded world map) gets
-       the wider slot, Languages takes the narrower one. align-items: start
-       lets Languages stay compact instead of stretching to match the map's
-       height. */
-    .grid-2-1   { grid-template-columns: 2fr 1fr; align-items: start; }
+    /* 7:3 split used for the Top Pages + Languages row. align-items:start
+       keeps Languages compact instead of stretching to match the (typically
+       taller) Top Pages list. */
+    .grid-7-3   { grid-template-columns: 7fr 3fr; align-items: start; }
 
     @media (max-width: 1024px) {
       .grid-kpis { grid-template-columns: repeat(2, 1fr); }
       .grid-3 { grid-template-columns: repeat(2, 1fr); }
     }
     @media (max-width: 640px) {
-      .grid-kpis, .grid-2, .grid-2-1, .grid-3 { grid-template-columns: 1fr; }
+      .grid-kpis, .grid-2, .grid-3, .grid-7-3 { grid-template-columns: 1fr; }
     }
 
     /* ====== CARD ====== */
@@ -1699,9 +1698,11 @@
           const has = !!entry;
           let opacity = 1;
           if (has && maxCount > 0) {
-            // Square-root scale: 0.15 (lightest) → 1.0 (darkest).
+            // Square-root scale: 0.25 (lightest) → 1.0 (darkest). Floor of
+            // 0.25 (not 0.15) keeps low-count countries clearly distinct
+            // from no-data countries against the dark map background.
             const norm = Math.sqrt(entry.count) / Math.sqrt(maxCount);
-            opacity = 0.15 + norm * 0.85;
+            opacity = 0.25 + norm * 0.75;
           }
           out.push(
             <path
@@ -1898,12 +1899,16 @@
         }
       }, [client, endpointFor]);
 
-      // Tier 1 — always fires. KPIs, traffic chart, top pages.
+      // Tier 1 — always fires. KPIs, traffic chart, top pages, and languages.
       // Plus the previous-period total for the trend KPI.
+      // Languages is in Tier 1 (not lazy) because it sits next to Top Pages
+      // in the same row — an asymmetric skeleton would look broken. The
+      // extra ~500ms (one queue slot) is invisible after the first load
+      // since the cache absorbs it.
       useEffect(() => {
         const cancelledRef = { current: false };
         (async () => {
-          await runTier(['total', 'hits'], cancelledRef);
+          await runTier(['total', 'hits', 'languages'], cancelledRef);
           if (cancelledRef.current) return;
           setLastUpdatedAt(Date.now());
 
@@ -1934,12 +1939,14 @@
         return () => { cancelledRef.current = true; };
       }, [donutInView, refreshTick, runTier]);
 
-      // Tier 3 — geo row (countries / languages). Lazy on visibility.
+      // Tier 3 — Countries (with map). Lazy on visibility. Languages used
+      // to live here too but moved to Tier 1 when the layout paired it with
+      // Top Pages.
       const [geoRowRef, geoInView] = useInView();
       useEffect(() => {
         if (!geoInView) return;
         const cancelledRef = { current: false };
-        runTier(['locations', 'languages'], cancelledRef);
+        runTier(['locations'], cancelledRef);
         return () => { cancelledRef.current = true; };
       }, [geoInView, refreshTick, runTier]);
 
@@ -2201,9 +2208,12 @@
                     : <SkeletonCard h={280} />}
                 </section>
 
-                {/* Top pages — full width. Aggregate referrers aren't returned by
-                    GoatCounter at the dashboard level; click any page to see its referrers. */}
-                <section style={{marginBottom: 20}}>
+                {/* Top pages + Languages — paired list cards. 70/30 split.
+                    Both load in Tier 1 so they appear together; an asymmetric
+                    skeleton (one rendered, one shimming) would look broken.
+                    Aggregate referrers aren't returned by GoatCounter at the
+                    dashboard level — click any row in Top Pages to drill in. */}
+                <section className="grid grid-7-3" style={{marginBottom: 20}}>
                   {failed('hits') ? <ErrCard title="Top pages" onRetry={() => retryKey('hits')} />
                     : ready('hits') ? (
                       <TopPagesCard
@@ -2213,6 +2223,9 @@
                         dateRange={dateRange}
                       />
                     ) : <SkeletonCard />}
+                  {failed('languages') ? <ErrCard title="Languages" onRetry={() => retryKey('languages')} />
+                    : ready('languages') ? <TopListCard title="Languages" stats={data?.languages?.stats} />
+                    : <SkeletonCard />}
                 </section>
 
                 {/* Donuts: browsers / OS / devices — lazy on visibility (Tier 2) */}
@@ -2228,11 +2241,11 @@
                     : <SkeletonCard />}
                 </section>
 
-                {/* Countries (with embedded world map) + Languages — both lazy
-                    on visibility (Tier 3). Countries takes 2/3 of the row to
-                    accommodate the map; Languages takes 1/3. align-items:start
-                    keeps Languages compact instead of stretching tall. */}
-                <section ref={geoRowRef} className="grid grid-2-1" style={{marginBottom: 20}}>
+                {/* Countries with embedded world map — full width, lazy on
+                    visibility (Tier 3). The map is the heaviest visual on the
+                    page and benefits from the full width; users who only want
+                    quick stats never need to scroll past it. */}
+                <section ref={geoRowRef} style={{marginBottom: 20}}>
                   {failed('locations') ? <ErrCard title="Countries" onRetry={() => retryKey('locations')} />
                     : ready('locations') ? (
                       <TopListCard
@@ -2242,9 +2255,6 @@
                         topSlot={<WorldMap data={data?.locations?.stats} total={totalNum} />}
                       />
                     ) : <SkeletonCard />}
-                  {failed('languages') ? <ErrCard title="Languages" onRetry={() => retryKey('languages')} />
-                    : ready('languages') ? <TopListCard title="Languages" stats={data?.languages?.stats} />
-                    : <SkeletonCard />}
                 </section>
 
                 {/* Campaigns — lazy on visibility (Tier 4). Only renders the card if data has rows. */}
