@@ -1,0 +1,12 @@
+{
+  "name": "goatcounter-dashboard-scripts",
+  "private": true,
+  "description": "Build tooling for the GoatCounter dashboard. Optional — only run when regenerating assets/world-map.js. The dashboard itself runs without Node.",
+  "scripts": {
+    "build-world-map": "node build-world-map.js"
+  },
+  "dependencies": {
+    "topojson-client": "3.1.0",
+    "world-atlas": "2.0.2"
+  }
+}

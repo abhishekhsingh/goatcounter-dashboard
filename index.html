@@ -378,13 +378,18 @@
     .grid-kpis  { grid-template-columns: repeat(4, 1fr); }
     .grid-2     { grid-template-columns: 1fr 1fr; }
     .grid-3     { grid-template-columns: repeat(3, 1fr); }
+    /* 2:1 split for the geo row — Countries (with embedded world map) gets
+       the wider slot, Languages takes the narrower one. align-items: start
+       lets Languages stay compact instead of stretching to match the map's
+       height. */
+    .grid-2-1   { grid-template-columns: 2fr 1fr; align-items: start; }
 
     @media (max-width: 1024px) {
       .grid-kpis { grid-template-columns: repeat(2, 1fr); }
       .grid-3 { grid-template-columns: repeat(2, 1fr); }
     }
     @media (max-width: 640px) {
-      .grid-kpis, .grid-2, .grid-3 { grid-template-columns: 1fr; }
+      .grid-kpis, .grid-2, .grid-2-1, .grid-3 { grid-template-columns: 1fr; }
     }
 
     /* ====== CARD ====== */
@@ -583,6 +588,75 @@
       font-size: 0.82rem;
       color: var(--text-secondary);
     }
+
+    /* ====== WORLD MAP ====== */
+    .world-map-wrap {
+      position: relative;
+      margin-bottom: 16px;
+    }
+    .world-map {
+      display: block;
+      width: 100%;
+      height: auto;
+      background: var(--bg);
+      border-radius: 8px;
+      overflow: hidden;
+      user-select: none;
+    }
+    .world-map path {
+      fill: var(--bg-surface);
+      stroke: var(--bg-surface-2);
+      stroke-width: 0.5;
+      vector-effect: non-scaling-stroke;
+      cursor: default;
+      transition: fill-opacity 0.15s ease, filter 0.15s ease;
+    }
+    .world-map path[data-has="1"] {
+      fill: var(--accent);
+      cursor: pointer;
+    }
+    .world-map path[data-has="1"]:hover {
+      filter: brightness(1.25);
+    }
+    .map-tooltip {
+      position: absolute;
+      pointer-events: none;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-size: 0.82rem;
+      box-shadow: var(--shadow-lg);
+      white-space: nowrap;
+      z-index: 10;
+      animation: fadeUp 0.12s ease;
+    }
+    .map-tooltip .tt-name { color: var(--text); font-weight: 500; }
+    .map-tooltip .tt-stats {
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--accent);
+      font-size: 0.78rem;
+      margin-top: 2px;
+    }
+    .map-legend {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      margin-top: 8px;
+      font-size: 0.7rem;
+      color: var(--text-muted);
+    }
+    .map-legend-bar {
+      width: 100px;
+      height: 6px;
+      border-radius: 3px;
+      background: linear-gradient(
+        to right,
+        color-mix(in srgb, var(--accent) 15%, transparent),
+        var(--accent)
+      );
+    }
     .legend-dot {
       display: inline-block;
       width: 8px;
@@ -690,6 +764,11 @@
   <script src="https://unpkg.com/recharts@2/umd/Recharts.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
+  <!-- World map path data (~28 KB gzipped). Plain script (NOT type="text/babel")
+       so Babel doesn't re-parse a giant JSON-style object on every page load.
+       Sets window.WORLD_MAP_PATHS and window.WORLD_MAP_VIEWBOX. -->
+  <script src="assets/world-map.js"></script>
+
   <script type="text/babel" data-presets="react">
     const { useState, useEffect, useMemo, useRef, useCallback } = React;
     const {
@@ -787,11 +866,26 @@
       return 'month';
     }
 
+    // GoatCounter's /stats/hits payload is pre-aggregated in the SITE's
+    // timezone: `day` is a calendar date string in site-local time, and
+    // `hourly[i]` is the count for hour `i` of that local day. Routing those
+    // through `new Date()` would treat them as UTC and shift everything by
+    // the browser's offset — for an IST site viewed in IST, that's a 5:30 hr
+    // shift on every label. So we parse the components directly instead.
     function formatDateLabel(iso, group) {
-      const d = new Date(iso);
       if (group === 'hour') {
-        return d.toLocaleTimeString([], { hour: 'numeric', hour12: true });
+        const m = iso.match(/T(\d{2})/);
+        const h = m ? parseInt(m[1], 10) : 0;
+        if (h === 0) return '12 AM';
+        if (h < 12) return h + ' AM';
+        if (h === 12) return '12 PM';
+        return (h - 12) + ' PM';
       }
+      const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (!m) return iso;
+      // Construct from local components so the displayed day matches the
+      // site's bucket regardless of the browser's timezone.
+      const d = new Date(+m[1], +m[2] - 1, +m[3]);
       return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
     }
 
@@ -810,6 +904,56 @@
       'Malaysia':'🇲🇾','Chile':'🇨🇱','Colombia':'🇨🇴','Austria':'🇦🇹','Hungary':'🇭🇺',
     };
     function flagFor(name) { return COUNTRY_FLAGS[name] || '🌐'; }
+
+    // Country name → ISO 3166-1 alpha-2 code, used to look up paths in the
+    // world map data shipped at assets/world-map.js. GoatCounter returns
+    // English names from its `geo` package; world-atlas labels match almost
+    // 1:1 but some need explicit mapping. Names not found here are passed
+    // to the heuristic in countryNameToCode() below.
+    const COUNTRY_NAME_TO_CODE = {
+      'United States':'US','United States of America':'US',
+      'United Kingdom':'GB','Great Britain':'GB','England':'GB',
+      'Russia':'RU','Russian Federation':'RU',
+      'South Korea':'KR','Korea, Republic of':'KR','Republic of Korea':'KR',
+      'North Korea':'KP','Korea, Democratic People’s Republic of':'KP',
+      'Czech Republic':'CZ','Czechia':'CZ',
+      'Vietnam':'VN','Viet Nam':'VN',
+      'Iran':'IR','Iran, Islamic Republic of':'IR',
+      'Syria':'SY','Syrian Arab Republic':'SY',
+      'Tanzania':'TZ','Tanzania, United Republic of':'TZ',
+      'Bolivia':'BO','Bolivia (Plurinational State of)':'BO',
+      'Venezuela':'VE','Venezuela (Bolivarian Republic of)':'VE',
+      'Moldova':'MD','Republic of Moldova':'MD',
+      'Laos':'LA','Lao People’s Democratic Republic':'LA',
+      'Brunei':'BN','Brunei Darussalam':'BN',
+      'Macedonia':'MK','North Macedonia':'MK','Republic of Macedonia':'MK',
+      'Ivory Coast':'CI','Cote d’Ivoire':'CI','Côte d’Ivoire':'CI',
+      'Cape Verde':'CV','Cabo Verde':'CV',
+      'East Timor':'TL','Timor-Leste':'TL',
+      'Swaziland':'SZ','Eswatini':'SZ','eSwatini':'SZ',
+      'Burma':'MM','Myanmar':'MM',
+      'Falkland Islands':'FK','Falkland Is.':'FK',
+      'DR Congo':'CD','Democratic Republic of the Congo':'CD','Congo (Kinshasa)':'CD',
+      'Republic of the Congo':'CG','Congo':'CG','Congo (Brazzaville)':'CG',
+      'Palestine':'PS','State of Palestine':'PS','Palestinian Territory':'PS',
+      'Hong Kong':'HK','Macao':'MO','Macau':'MO',
+      'Taiwan':'TW','Taiwan, Province of China':'TW',
+      'Vatican':'VA','Holy See':'VA','Vatican City':'VA',
+      'Kosovo':'XK',
+    };
+    // Resolve a GoatCounter country name to an ISO alpha-2 code. Variants
+    // table above wins; otherwise we fall back to the canonical ISO names
+    // list shipped with assets/world-map.js (covers the simple cases like
+    // "India", "Japan", "United Arab Emirates"). Returns null if neither
+    // matches — caller decides what to do.
+    function countryNameToCode(name) {
+      if (!name) return null;
+      const trimmed = name.trim();
+      if (COUNTRY_NAME_TO_CODE[trimmed]) return COUNTRY_NAME_TO_CODE[trimmed];
+      const isoNames = (typeof window !== 'undefined' && window.WORLD_MAP_NAMES) || null;
+      if (isoNames && isoNames[trimmed]) return isoNames[trimmed];
+      return null;
+    }
 
     // ============================================================
     // API CLIENT (rate-limited)
@@ -1330,7 +1474,9 @@
     // ============================================================
     // GENERIC TOP-LIST CARD (referrers, etc.)
     // ============================================================
-    function TopListCard({ title, subtitle, stats, prefix, formatName }) {
+    // `topSlot`: optional React node rendered between the card header and the
+    // list (used by the Countries card to slot the world map above the list).
+    function TopListCard({ title, subtitle, stats, prefix, formatName, topSlot }) {
       const [showAll, setShowAll] = useState(false);
       const items = useMemo(() => (stats || []).slice().sort((a,b) => b.count - a.count), [stats]);
       const total = items.reduce((s, x) => s + (x.count || 0), 0);
@@ -1343,6 +1489,7 @@
             <h3 className="card-title">{title}</h3>
             {subtitle && <span className="card-subtitle">{subtitle}</span>}
           </div>
+          {topSlot}
           {!items.length ? (
             <div className="empty-state">No data.</div>
           ) : (
@@ -1378,27 +1525,38 @@
     // ============================================================
     // DONUT CHART (browsers / OS / devices)
     // ============================================================
+    // Display labels for /stats/sizes: GoatCounter puts the category in `id`
+    // ("phone", "desktop", etc.) and leaves `name` empty. /stats/browsers and
+    // /stats/systems put the label in `name` directly, so non-device cards
+    // don't go through this lookup.
+    const DEVICE_LABELS = {
+      phone: 'Phones',
+      tablet: 'Tablets',
+      desktop: 'Laptop/Desktop',
+      desktophd: 'HD Display',
+      unknown: 'Unknown',
+    };
+
     function DonutCard({ title, stats, deviceMode }) {
       let data = (stats || [])
-        .map((x) => ({ name: x.name || 'Unknown', value: x.count || 0 }))
+        .map((x) => {
+          const label = deviceMode
+            ? (DEVICE_LABELS[x.id]
+                || (x.name && x.name.trim())
+                || (x.id ? x.id.charAt(0).toUpperCase() + x.id.slice(1) : 'Unknown'))
+            : (x.name || 'Unknown');
+          return { name: label, value: x.count || 0 };
+        })
         .filter(x => x.value > 0)
         .sort((a, b) => b.value - a.value);
 
-      // For device mode, fold long names down
+      // Merge any same-label rows (in case the API ever returns duplicate ids).
       if (deviceMode) {
-        data = data.map(x => {
-          const n = x.name.toLowerCase();
-          let label = x.name;
-          if (n.includes('phone')) label = 'Phones';
-          else if (n.includes('tablet')) label = 'Tablets';
-          else if (n.includes('monitor') || n.includes('desktop') || n.includes('computer')) label = 'Desktop';
-          else if (n.includes('tv') || n.includes('large screen')) label = 'TV';
-          return { ...x, name: label };
-        });
-        // Combine duplicates
         const merged = {};
-        data.forEach(d => { merged[d.name] = (merged[d.name] || 0) + d.value; });
-        data = Object.entries(merged).map(([name, value]) => ({ name, value })).sort((a,b) => b.value - a.value);
+        for (const d of data) merged[d.name] = (merged[d.name] || 0) + d.value;
+        data = Object.entries(merged)
+          .map(([name, value]) => ({ name, value }))
+          .sort((a, b) => b.value - a.value);
       }
 
       // Top 5, rest folded to "Other"
@@ -1483,6 +1641,153 @@
         </div>
       );
     }
+
+    // ============================================================
+    // WORLD MAP — choropleth, lazy-attached to the Countries card.
+    // Path data ships separately at assets/world-map.js to keep Babel out
+    // of its parse path. Color scale is sqrt so the bottom 80% of countries
+    // stay distinguishable. Single delegated mouse handler on the SVG root
+    // (not per-path) so 174 countries don't each carry a listener.
+    // ============================================================
+    const WorldMap = React.memo(function WorldMap({ data, total }) {
+      const [tooltip, setTooltip] = useState(null);
+      const wrapRef = useRef(null);
+
+      // Resolve country names to ISO codes; collect any unmapped names
+      // for diagnostics (logged once, only when ?debug=1 is in the URL).
+      const byCode = useMemo(() => {
+        const out = new Map();
+        const unmapped = [];
+        for (const row of (data || [])) {
+          if (!row || !row.count) continue;
+          const code = countryNameToCode(row.name);
+          if (!code) { unmapped.push(row.name); continue; }
+          // If the same ISO appears twice (shouldn't normally), sum counts.
+          const prev = out.get(code);
+          out.set(code, prev
+            ? { name: prev.name, count: prev.count + row.count }
+            : { name: row.name, count: row.count });
+        }
+        if (unmapped.length) {
+          try {
+            const debug = new URLSearchParams(window.location.search).get('debug') === '1';
+            if (debug) console.warn('[WorldMap] Unmapped country names:', unmapped);
+          } catch (e) {}
+        }
+        return out;
+      }, [data]);
+
+      const maxCount = useMemo(() => {
+        let m = 0;
+        for (const v of byCode.values()) if (v.count > m) m = v.count;
+        return m;
+      }, [byCode]);
+
+      // Map data is provided by assets/world-map.js. If the script failed
+      // to load (offline, blocked), render nothing — country list still works.
+      const paths = typeof window !== 'undefined' ? window.WORLD_MAP_PATHS : null;
+      const viewBox = (typeof window !== 'undefined' && window.WORLD_MAP_VIEWBOX) || '0 0 1000 500';
+
+      // Memoize SVG path nodes so hover state changes don't recreate them.
+      // Reconciliation still walks them, but each node is reference-equal
+      // and the DOM stays untouched.
+      const renderedPaths = useMemo(() => {
+        if (!paths) return null;
+        const out = [];
+        for (const code in paths) {
+          const entry = byCode.get(code);
+          const has = !!entry;
+          let opacity = 1;
+          if (has && maxCount > 0) {
+            // Square-root scale: 0.15 (lightest) → 1.0 (darkest).
+            const norm = Math.sqrt(entry.count) / Math.sqrt(maxCount);
+            opacity = 0.15 + norm * 0.85;
+          }
+          out.push(
+            <path
+              key={code}
+              d={paths[code]}
+              data-code={code}
+              data-has={has ? '1' : '0'}
+              fillOpacity={has ? opacity : 1}
+            />
+          );
+        }
+        return out;
+      }, [paths, byCode, maxCount]);
+
+      // Single delegated handler on the SVG root. Reads data-code from
+      // event.target (which is the path under the cursor).
+      const handlePoint = useCallback((e) => {
+        const target = e.target.closest && e.target.closest('path');
+        if (!target || target.dataset.has !== '1') {
+          setTooltip(t => t ? null : t);
+          return;
+        }
+        const entry = byCode.get(target.dataset.code);
+        if (!entry) return;
+        const wrapRect = wrapRef.current && wrapRef.current.getBoundingClientRect();
+        if (!wrapRect) return;
+        const point = e.touches && e.touches[0] ? e.touches[0] : e;
+        setTooltip({
+          x: point.clientX - wrapRect.left,
+          y: point.clientY - wrapRect.top,
+          name: entry.name,
+          count: entry.count,
+          pct: total > 0 ? ((entry.count / total) * 100).toFixed(1) : '0.0',
+        });
+      }, [byCode, total]);
+
+      const handleLeave = useCallback(() => setTooltip(null), []);
+
+      // Mobile UX: tap-elsewhere or scroll dismisses the tooltip.
+      useEffect(() => {
+        if (!tooltip) return;
+        const dismiss = () => setTooltip(null);
+        window.addEventListener('scroll', dismiss, { passive: true });
+        return () => window.removeEventListener('scroll', dismiss);
+      }, [tooltip]);
+
+      if (!paths) return null;
+
+      // Position the tooltip with a small offset and clamp it inside the wrap
+      // so it doesn't overflow the right edge.
+      let ttLeft = 0, ttTop = 0;
+      if (tooltip) {
+        const wrapW = (wrapRef.current && wrapRef.current.clientWidth) || 1000;
+        ttLeft = Math.max(4, Math.min(tooltip.x + 12, wrapW - 200));
+        ttTop = Math.max(4, tooltip.y - 50);
+      }
+
+      return (
+        <div className="world-map-wrap" ref={wrapRef}>
+          <svg
+            className="world-map"
+            viewBox={viewBox}
+            preserveAspectRatio="xMidYMid meet"
+            role="img"
+            aria-label="World map of visitor countries"
+            onMouseMove={handlePoint}
+            onMouseLeave={handleLeave}
+            onTouchStart={handlePoint}
+            onTouchMove={handlePoint}
+          >
+            {renderedPaths}
+          </svg>
+          {tooltip && (
+            <div className="map-tooltip" style={{ left: ttLeft, top: ttTop }}>
+              <div className="tt-name">{flagFor(tooltip.name)} {tooltip.name}</div>
+              <div className="tt-stats">{fmtNum(tooltip.count)} · {tooltip.pct}%</div>
+            </div>
+          )}
+          <div className="map-legend" aria-hidden="true">
+            <span>Less</span>
+            <span className="map-legend-bar" />
+            <span>More</span>
+          </div>
+        </div>
+      );
+    });
 
     // ============================================================
     // DASHBOARD
@@ -1923,14 +2228,18 @@
                     : <SkeletonCard />}
                 </section>
 
-                {/* Countries + Languages — lazy on visibility (Tier 3) */}
-                <section ref={geoRowRef} className="grid grid-2" style={{marginBottom: 20}}>
+                {/* Countries (with embedded world map) + Languages — both lazy
+                    on visibility (Tier 3). Countries takes 2/3 of the row to
+                    accommodate the map; Languages takes 1/3. align-items:start
+                    keeps Languages compact instead of stretching tall. */}
+                <section ref={geoRowRef} className="grid grid-2-1" style={{marginBottom: 20}}>
                   {failed('locations') ? <ErrCard title="Countries" onRetry={() => retryKey('locations')} />
                     : ready('locations') ? (
                       <TopListCard
                         title="Countries"
                         stats={data?.locations?.stats}
                         prefix={(x) => <span style={{marginRight:8, fontSize:'1rem'}}>{flagFor(x.name)}</span>}
+                        topSlot={<WorldMap data={data?.locations?.stats} total={totalNum} />}
                       />
                     ) : <SkeletonCard />}
                   {failed('languages') ? <ErrCard title="Languages" onRetry={() => retryKey('languages')} />

@@ -7,6 +7,7 @@ A modern, beautiful, open-source alternative dashboard for [GoatCounter](https:/
 ## ✨ Features
 
 - 📊 **Interactive charts** — area chart for traffic, donut charts for browsers/OS/devices, horizontal bars for countries and languages.
+- 🗺 **Choropleth world map** — countries shaded by visitor count (square-root scale so small markets stay visible), with hover tooltips and a gradient legend.
 - 🌗 **Dark & light mode** — defaults to your system preference, toggle persisted across sessions.
 - 📅 **Flexible date ranges** — Today, 7d, 30d, 90d, or a custom range.
 - 📈 **Period-over-period trends** — every KPI card compares against the previous equivalent window.
@@ -80,13 +81,20 @@ This dashboard talks to GoatCounter's public REST API (`/api/v0`). Requests are 
 
 ## 🧱 Tech Stack
 
-- **React 18** (UMD build, via unpkg CDN)
-- **Recharts 2** for all charts
-- **Babel Standalone** for in-browser JSX compilation
+Five scripts loaded from unpkg, in the order the page needs them:
+
+- **React 18** + **ReactDOM 18** (UMD)
+- **prop-types 15** (UMD) — required at runtime by Recharts' UMD build. Recharts treats `PropTypes` as an external global; without this script tag the chart layer crashes during init.
+- **Recharts 2** — area chart for traffic, donut charts for browsers/OS/devices, horizontal bar lists for countries and languages
+- **Babel Standalone** — in-browser JSX compilation
+
+Plus:
+
 - **Inter** + **JetBrains Mono** from Google Fonts
 - Plain CSS with custom properties for theming — no Tailwind, no preprocessor, no bundler
+- One generated static asset: `assets/world-map.js` (~78 KB raw / ~27 KB gzipped) — country path data for the choropleth, regenerated only when the underlying dataset changes via `scripts/build-world-map.js`
 
-The whole app is a single `index.html` (~1900 lines including CSS + React + comments). No bundler, no compile step.
+The dashboard itself is a single `index.html` (~2300 lines including CSS, React components, and inline comments). No runtime build step.
 
 ## 🧭 Project Status
 
@@ -96,6 +104,7 @@ Working today:
 - ✅ All 9 GoatCounter stat endpoints integrated
 - ✅ Period-over-period trend on the visitors KPI
 - ✅ Drill-down referrers per page (click any row in Top Pages)
+- ✅ Choropleth world map with hover tooltips (sqrt color scale)
 - ✅ Dark / light theme with system-preference default
 - ✅ Today / 7d / 30d / 90d / Custom date ranges
 - ✅ Strict-sequential rate-limited request queue
@@ -105,23 +114,25 @@ Working today:
 - ✅ "Loading X of Y…" / "Updated Xs ago" freshness indicator
 - ✅ Skeleton loading states, fault-tolerant error handling
 
-Ideas for the future: world-map view for countries, CSV export, multi-site switcher, real-time mode, stale-while-revalidate cache.
+Ideas for the future: CSV export, multi-site switcher, real-time mode, stale-while-revalidate cache.
 
 ## 🤝 Contributing
 
-PRs welcome! Because there's no build step, contributing is easy:
+PRs welcome! For most changes the flow is:
 
 1. Fork & clone.
 2. Edit `index.html`.
 3. Open it in a browser to test.
 4. Open a PR.
 
+The only piece of the repo that needs Node is `scripts/`, which regenerates `assets/world-map.js` from pinned source data. You only run it when the country dataset itself needs updating — see [`scripts/README.md`](scripts/README.md) for the recipe. Touching the dashboard never requires it.
+
 ### Project rules
 
 These keep the dashboard simple and trustworthy. PRs that violate them are unlikely to be merged:
 
-- **No build step.** No npm, no bundler, no transpiler outside the browser. Everything stays inside one `index.html` (plus `assets/`). Babel-standalone is the only compile-on-load we tolerate, and it's already there.
-- **No new runtime dependencies** beyond the four already loaded from a CDN (React, ReactDOM, Recharts, Babel-standalone). Adding another script tag needs a strong reason and an issue to discuss it first.
+- **No runtime build step.** The dashboard runs in the browser as-is. The single static asset that's "built" — `assets/world-map.js` — is regenerated only when the underlying country dataset needs updating, via `scripts/build-world-map.js`. Routine code changes don't need npm. The dashboard itself never sees Node.
+- **No new runtime dependencies** beyond the five already loaded from a CDN (React, ReactDOM, prop-types, Recharts, Babel-standalone). `prop-types` looks unused if you grep the source, but Recharts' UMD build calls it during module init — removing the script tag silently breaks all charts. Adding another script tag needs a strong reason and an issue to discuss it first.
 - **No analytics, telemetry, or tracking.** This is a privacy-friendly dashboard for a privacy-friendly analytics tool — it cannot phone home. The only network calls allowed are to the user's GoatCounter instance.
 - **No backend.** No server-side proxy, no serverless function, no edge worker. Everything must run in the browser against the GoatCounter API directly.
 - **Credentials stay local.** API keys live in `localStorage` and only travel to the user's GoatCounter site over HTTPS. Never log them, never send them anywhere else.
