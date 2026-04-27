@@ -673,14 +673,22 @@
       stroke-width: 0.5;
       vector-effect: non-scaling-stroke;
       cursor: default;
-      transition: fill-opacity 0.15s ease, filter 0.15s ease;
+      transition: fill-opacity 0.15s ease,
+                  stroke 0.15s ease, stroke-width 0.15s ease;
     }
     .world-map path[data-has="1"] {
       fill: var(--accent);
       cursor: pointer;
     }
+    /* Hover: each <path> is one country (all disjoint territories live
+       inside the same `d` attribute as M..Z subpaths), so :hover applies
+       to the whole element. Fill-opacity stays at its data-encoded value
+       — that's the signal (brighter = more visitors), and we don't want
+       to flatten it on hover. Just outline the country in --accent-hover
+       so the grouping is unmistakable. */
     .world-map path[data-has="1"]:hover {
-      filter: brightness(1.25);
+      stroke: var(--accent-hover);
+      stroke-width: 1.5;
     }
     .map-tooltip {
       position: absolute;
