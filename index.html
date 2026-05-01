@@ -830,11 +830,11 @@
        build treats PropTypes as an external global (Animate.js calls
        PropTypes.oneOfType during module init), so dropping it crashes the
        chart layer. -->
-  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-  <script src="https://unpkg.com/prop-types@15/prop-types.min.js"></script>
-  <script src="https://unpkg.com/recharts@2/umd/Recharts.js"></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/prop-types@15.8.1/prop-types.min.js"></script>
+  <script src="https://unpkg.com/recharts@2.15.4/umd/Recharts.js"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.3/babel.min.js"></script>
 
   <!-- World map path data (~28 KB gzipped). Plain script (NOT type="text/babel")
        so Babel doesn't re-parse a giant JSON-style object on every page load.
@@ -1831,6 +1831,11 @@
       const [refData, setRefData] = useState({});
       const [refLoading, setRefLoading] = useState(null);
       const [showAll, setShowAll] = useState(false);
+
+      useEffect(() => {
+        setExpanded(null);
+        setRefData({});
+      }, [dateRange]);
 
       // Normalize: GoatCounter returns `path_id`; older docs/snapshots used `id`. Use whichever is present.
       const items = useMemo(
