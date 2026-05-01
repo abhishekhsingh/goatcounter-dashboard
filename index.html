@@ -1419,9 +1419,14 @@
           headers: { 'Authorization': 'Bearer ' + this.apiKey },
         });
 
-        if (res.status === 401 || res.status === 403) {
-          const err = new Error('Authentication failed. Please check your API key.');
-          err.status = res.status; err.kind = 'auth';
+        if (res.status === 401) {
+          const err = new Error('API key not recognized. Please check you copied the full key with no extra spaces.');
+          err.status = 401; err.kind = 'auth';
+          throw err;
+        }
+        if (res.status === 403) {
+          const err = new Error('API key lacks read permission. Go to your GoatCounter settings, API tab, and create a key with "Read only" or "Count & Read" access.');
+          err.status = 403; err.kind = 'auth';
           throw err;
         }
         if (res.status === 404) {
@@ -1624,7 +1629,7 @@
         } catch (err) {
           let msg = err.message || 'Could not connect.';
           if (err instanceof TypeError) {
-            msg = `Could not reach ${baseURL}. Check the URL is correct and the site supports CORS (most GoatCounter instances do).`;
+            msg = `Could not reach ${baseURL}. Check the URL is correct and the site supports CORS (most GoatCounter instances do). If you have an ad blocker (uBlock Origin, Brave Shields, etc.), try disabling it for this page -- GoatCounter domains are on common filter lists.`;
           }
           setError(msg);
           setBusy(false);

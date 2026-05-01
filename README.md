@@ -145,6 +145,10 @@ These keep the dashboard simple and trustworthy. PRs that violate them are unlik
 
 Bug reports and feature ideas → [GitHub Issues](https://github.com/abhishekhsingh/goatcounter-dashboard/issues).
 
+## 🔧 Troubleshooting
+
+Having issues connecting? See the [Troubleshooting Guide](TROUBLESHOOTING.md).
+
 ## 📄 License
 
 MIT — see [LICENSE](LICENSE).
