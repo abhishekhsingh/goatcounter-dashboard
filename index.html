@@ -95,6 +95,7 @@
       outline-offset: 2px;
       border-radius: 4px;
     }
+    .recharts-sector:focus:not(:focus-visible) { outline: none; }
 
     input, select {
       font-family: inherit;
@@ -686,7 +687,8 @@
        — that's the signal (brighter = more visitors), and we don't want
        to flatten it on hover. Just outline the country in --accent-hover
        so the grouping is unmistakable. */
-    .world-map path[data-has="1"]:hover {
+    .world-map path[data-has="1"]:hover,
+    .world-map path.map-selected {
       stroke: var(--accent-hover);
       stroke-width: 1.5;
     }
@@ -845,7 +847,7 @@
     const { useState, useEffect, useMemo, useRef, useCallback } = React;
     const {
       ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-      PieChart, Pie, Cell,
+      PieChart, Pie, Cell, Sector,
     } = Recharts;
 
     // ============================================================
@@ -1117,6 +1119,52 @@
         { name: 'news.ycombinator.com', count: 123 },
         { name: '(direct)', count: 74 },
       ],
+    };
+
+    const DEMO_BROWSER_DETAILS = {
+      'Chrome':  [{ name: 'Chrome 124', count: 3412 }, { name: 'Chrome 123', count: 2876 }, { name: 'Chrome 122', count: 1243 }, { name: 'Chrome 121', count: 596 }],
+      'Safari':  [{ name: 'Safari 17.4', count: 1423 }, { name: 'Safari 17.3', count: 987 }, { name: 'Safari 16.6', count: 534 }, { name: 'Safari 16.5', count: 275 }],
+      'Firefox': [{ name: 'Firefox 125', count: 1123 }, { name: 'Firefox 124', count: 834 }, { name: 'Firefox 115', count: 384 }],
+      'Edge':    [{ name: 'Edge 124', count: 534 }, { name: 'Edge 123', count: 267 }, { name: 'Edge 122', count: 75 }],
+      'Arc':     [{ name: 'Arc 1.4', count: 112 }, { name: 'Arc 1.3', count: 86 }],
+      'Brave':   [{ name: 'Brave 1.65', count: 78 }, { name: 'Brave 1.64', count: 34 }],
+    };
+
+    const DEMO_SYSTEM_DETAILS = {
+      'macOS':     [{ name: 'macOS 14', count: 2876 }, { name: 'macOS 13', count: 1987 }, { name: 'macOS 12', count: 734 }, { name: 'macOS 11', count: 337 }],
+      'Windows':   [{ name: 'Windows 11', count: 2134 }, { name: 'Windows 10', count: 1567 }, { name: 'Windows 8.1', count: 234 }, { name: 'Windows 7', count: 188 }],
+      'iOS':       [{ name: 'iOS 17', count: 1423 }, { name: 'iOS 16', count: 634 }, { name: 'iOS 15', count: 290 }],
+      'Android':   [{ name: 'Android 14', count: 876 }, { name: 'Android 13', count: 467 }, { name: 'Android 12', count: 224 }],
+      'Linux':     [{ name: 'Linux x86_64', count: 612 }, { name: 'Linux aarch64', count: 222 }],
+      'Chrome OS': [{ name: 'Chrome OS 120', count: 68 }],
+    };
+
+    const DEMO_SIZE_DETAILS = {
+      'desktop':   [{ name: '↔ 1920px', count: 4123 }, { name: '↔ 1440px', count: 2876 }, { name: '↔ 1536px', count: 1534 }, { name: '↔ 1366px', count: 701 }],
+      'phone':     [{ name: '↔ 390px', count: 1876 }, { name: '↔ 375px', count: 1123 }, { name: '↔ 414px', count: 734 }, { name: '↔ 360px', count: 390 }],
+      'tablet':    [{ name: '↔ 768px', count: 423 }, { name: '↔ 810px', count: 312 }, { name: '↔ 820px', count: 141 }],
+      'desktophd': [{ name: '↔ 2560px', count: 312 }, { name: '↔ 3840px', count: 134 }, { name: '↔ 3440px', count: 88 }],
+    };
+
+    const DEMO_LOCATION_DETAILS = {
+      'United States':  [{ name: 'California', count: 1423 }, { name: 'New York', count: 876 }, { name: 'Texas', count: 534 }, { name: 'Washington', count: 423 }, { name: 'Massachusetts', count: 312 }],
+      'India':          [{ name: 'Maharashtra', count: 534 }, { name: 'Karnataka', count: 423 }, { name: 'Delhi', count: 312 }, { name: 'Tamil Nadu', count: 267 }, { name: 'Telangana', count: 198 }],
+      'Germany':        [{ name: 'Berlin', count: 312 }, { name: 'Bavaria', count: 267 }, { name: 'North Rhine-Westphalia', count: 234 }, { name: 'Hamburg', count: 134 }],
+      'United Kingdom': [{ name: 'England', count: 623 }, { name: 'Scotland', count: 187 }, { name: 'Wales', count: 98 }, { name: 'Northern Ireland', count: 79 }],
+      'Canada':         [{ name: 'Ontario', count: 312 }, { name: 'British Columbia', count: 198 }, { name: 'Quebec', count: 134 }, { name: 'Alberta', count: 99 }],
+      'France':         [{ name: 'Ile-de-France', count: 234 }, { name: 'Auvergne-Rhone-Alpes', count: 134 }, { name: 'Provence-Alpes-Cote d\'Azur', count: 98 }],
+      'Japan':          [{ name: 'Tokyo', count: 198 }, { name: 'Osaka', count: 134 }, { name: 'Kanagawa', count: 87 }],
+      'Australia':      [{ name: 'New South Wales', count: 156 }, { name: 'Victoria', count: 112 }, { name: 'Queensland', count: 67 }],
+      'Brazil':         [{ name: 'Sao Paulo', count: 134 }, { name: 'Rio de Janeiro', count: 87 }, { name: 'Minas Gerais', count: 56 }],
+    };
+
+    const DEMO_CAMPAIGN_DETAILS = {
+      'hackernews-apr':    [{ name: 'https://news.ycombinator.com/item?id=39812', count: 1234 }, { name: 'https://news.ycombinator.com/item?id=39845', count: 613 }],
+      'reddit-selfhosted': [{ name: 'https://reddit.com/r/selfhosted/comments/abc123', count: 534 }, { name: 'https://reddit.com/r/golang/comments/def456', count: 289 }],
+      'twitter-thread':    [{ name: 'https://twitter.com/user/status/123456', count: 312 }, { name: 'https://twitter.com/user/status/789012', count: 222 }],
+      'linkedin-post':     [{ name: 'https://linkedin.com/posts/user_abc123', count: 312 }],
+      'devto-article':     [{ name: 'https://dev.to/user/article-slug', count: 198 }],
+      'newsletter-weekly': [{ name: 'https://buttondown.email/newsletter/archive/42', count: 156 }],
     };
 
     const DEMO_BROWSERS = [
@@ -1946,12 +1994,44 @@
     // ============================================================
     // `topSlot`: optional React node rendered between the card header and the
     // list (used by the Countries card to slot the world map above the list).
-    function TopListCard({ title, subtitle, stats, prefix, formatName, topSlot }) {
+    function TopListCard({ title, subtitle, stats, prefix, formatName, topSlot, client, dateRange, demoMode, page, demoDetails }) {
       const [showAll, setShowAll] = useState(false);
+      const [expanded, setExpanded] = useState(null);
+      const [detailData, setDetailData] = useState({});
+      const [detailLoading, setDetailLoading] = useState(null);
+
+      useEffect(() => {
+        setExpanded(null);
+        setDetailData({});
+      }, [dateRange]);
+
       const items = useMemo(() => (stats || []).slice().sort((a,b) => b.count - a.count), [stats]);
       const total = items.reduce((s, x) => s + (x.count || 0), 0);
       const max = Math.max(1, ...(items.map(x => x.count)));
       const visible = showAll ? items : items.slice(0, 8);
+      const canDrill = !!((client || demoMode) && page);
+
+      const handleDrilldown = useCallback(async (item) => {
+        const itemId = item.id || item.name || '';
+        if (expanded === itemId) { setExpanded(null); return; }
+        setExpanded(itemId);
+        if (detailData[itemId]) return;
+        if (demoMode) {
+          const details = (demoDetails && demoDetails[itemId]) || [];
+          setDetailData(prev => ({ ...prev, [itemId]: details }));
+          return;
+        }
+        setDetailLoading(itemId);
+        try {
+          const url = `/api/v0/stats/${page}/${encodeURIComponent(itemId)}?start=${encodeURIComponent(dateRange.start)}&end=${encodeURIComponent(dateRange.end)}&limit=10`;
+          const res = await client.request(url);
+          setDetailData(prev => ({ ...prev, [itemId]: res.stats || [] }));
+        } catch (e) {
+          setDetailData(prev => ({ ...prev, [itemId]: { error: e.message } }));
+        } finally {
+          setDetailLoading(null);
+        }
+      }, [expanded, detailData, client, dateRange, demoMode, demoDetails, page]);
 
       return (
         <div className="card fade-in">
@@ -1959,7 +2039,7 @@
             <h3 className="card-title">{title}</h3>
             {subtitle && <span className="card-subtitle">{subtitle}</span>}
           </div>
-          {topSlot}
+          {topSlot && canDrill ? React.cloneElement(topSlot, { highlightCountry: expanded }) : topSlot}
           {!items.length ? (
             <div className="empty-state">No data.</div>
           ) : (
@@ -1967,18 +2047,55 @@
               {visible.map((x, i) => {
                 const widthPct = (x.count / max) * 100;
                 const sharePct = total > 0 ? (x.count / total) * 100 : 0;
+                const itemId = x.id || x.name || '';
+                const isOpen = expanded === itemId;
+                const detail = detailData[itemId];
+                const detailMax = Array.isArray(detail) ? Math.max(1, ...detail.map(r => r.count || 0)) : 1;
                 return (
-                  <li key={i} className="row-item">
-                    <span className="row-name truncate" title={x.name}>
-                      {prefix ? prefix(x) : null}
-                      {formatName ? formatName(x) : (x.name || '(none)')}
-                    </span>
-                    <span>
-                      <span className="row-value">{fmtNum(x.count)}</span>
-                      <span className="row-pct">{sharePct.toFixed(1)}%</span>
-                    </span>
-                    <span className="row-bar" style={{ width: widthPct + '%' }} />
-                  </li>
+                  <React.Fragment key={i}>
+                    <li
+                      className={'row-item' + (canDrill ? ' clickable' : '')}
+                      onClick={canDrill ? () => handleDrilldown(x) : undefined}
+                      role={canDrill ? 'button' : undefined}
+                      tabIndex={canDrill ? 0 : undefined}
+                      onKeyDown={canDrill ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleDrilldown(x); } } : undefined}
+                      aria-expanded={canDrill ? isOpen : undefined}
+                    >
+                      <span className="row-name truncate" title={x.name}>
+                        {canDrill && <span className={'row-chevron' + (isOpen ? ' open' : '')} aria-hidden="true">▸</span>}
+                        {prefix ? prefix(x) : null}
+                        {formatName ? formatName(x) : (x.name || '(none)')}
+                      </span>
+                      <span>
+                        <span className="row-value">{fmtNum(x.count)}</span>
+                        <span className="row-pct">{sharePct.toFixed(1)}%</span>
+                      </span>
+                      <span className="row-bar" style={{ width: widthPct + '%' }} />
+                    </li>
+                    {canDrill && isOpen && (
+                      <li className="ref-panel">
+                        <p className="ref-panel-title">{x.name} breakdown</p>
+                        {detailLoading === itemId && <div style={{fontSize:'0.82rem', color:'var(--text-muted)'}}>Loading...</div>}
+                        {detail && detail.error && (
+                          <div style={{fontSize:'0.82rem', color:'var(--danger)'}}>{detail.error}</div>
+                        )}
+                        {Array.isArray(detail) && detail.length === 0 && (
+                          <div style={{fontSize:'0.82rem', color:'var(--text-muted)'}}>No detail data.</div>
+                        )}
+                        {Array.isArray(detail) && detail.length > 0 && (
+                          <ul className="ref-list">
+                            {detail.slice(0, 8).map((r, ri) => (
+                              <li key={ri} style={{position:'relative'}}>
+                                <span className="ref-name">{r.name || '(unknown)'}</span>
+                                <span className="row-value">{fmtNum(r.count)}</span>
+                                <span className="row-bar" style={{ width: ((r.count || 0) / detailMax * 100) + '%' }} />
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </li>
+                    )}
+                  </React.Fragment>
                 );
               })}
             </ul>
@@ -2007,7 +2124,16 @@
       unknown: 'Unknown',
     };
 
-    function DonutCard({ title, stats, deviceMode }) {
+    function DonutCard({ title, stats, deviceMode, client, dateRange, demoMode, page, demoDetails }) {
+      const [expanded, setExpanded] = useState(null);
+      const [detailData, setDetailData] = useState({});
+      const [detailLoading, setDetailLoading] = useState(null);
+
+      useEffect(() => {
+        setExpanded(null);
+        setDetailData({});
+      }, [dateRange]);
+
       let data = (stats || [])
         .map((x) => {
           const label = deviceMode
@@ -2015,29 +2141,68 @@
                 || (x.name && x.name.trim())
                 || (x.id ? x.id.charAt(0).toUpperCase() + x.id.slice(1) : 'Unknown'))
             : (x.name || 'Unknown');
-          return { name: label, value: x.count || 0 };
+          return { name: label, value: x.count || 0, apiId: x.id || x.name || '' };
         })
         .filter(x => x.value > 0)
         .sort((a, b) => b.value - a.value);
 
-      // Merge any same-label rows (in case the API ever returns duplicate ids).
       if (deviceMode) {
         const merged = {};
-        for (const d of data) merged[d.name] = (merged[d.name] || 0) + d.value;
+        for (const d of data) {
+          if (!merged[d.name]) merged[d.name] = { value: 0, apiId: d.apiId };
+          merged[d.name].value += d.value;
+        }
         data = Object.entries(merged)
-          .map(([name, value]) => ({ name, value }))
+          .map(([name, { value, apiId }]) => ({ name, value, apiId }))
           .sort((a, b) => b.value - a.value);
       }
 
-      // Top 5, rest folded to "Other"
       let chartData = data;
       if (data.length > 6) {
         const top = data.slice(0, 5);
         const rest = data.slice(5).reduce((s, x) => s + x.value, 0);
-        chartData = [...top, { name: 'Other', value: rest }];
+        chartData = [...top, { name: 'Other', value: rest, apiId: '__other__' }];
       }
 
       const total = chartData.reduce((s, x) => s + x.value, 0);
+      const canDrill = !!((client || demoMode) && page);
+      const activeIdx = expanded !== null ? chartData.findIndex(d => d.apiId === expanded) : -1;
+
+      const handleDrilldown = useCallback(async (item) => {
+        if (item.apiId === '__other__') return;
+        if (expanded === item.apiId) { setExpanded(null); return; }
+        setExpanded(item.apiId);
+        if (detailData[item.apiId]) return;
+        if (demoMode) {
+          const details = (demoDetails && demoDetails[item.apiId]) || [];
+          setDetailData(prev => ({ ...prev, [item.apiId]: details }));
+          return;
+        }
+        setDetailLoading(item.apiId);
+        try {
+          const url = `/api/v0/stats/${page}/${encodeURIComponent(item.apiId)}?start=${encodeURIComponent(dateRange.start)}&end=${encodeURIComponent(dateRange.end)}&limit=10`;
+          const res = await client.request(url);
+          setDetailData(prev => ({ ...prev, [item.apiId]: res.stats || [] }));
+        } catch (e) {
+          setDetailData(prev => ({ ...prev, [item.apiId]: { error: e.message } }));
+        } finally {
+          setDetailLoading(null);
+        }
+      }, [expanded, detailData, client, dateRange, demoMode, demoDetails, page]);
+
+      const activeShape = useCallback((props) => (
+        <Sector
+          {...props}
+          outerRadius={props.outerRadius + 6}
+          stroke="var(--accent-hover)"
+          strokeWidth={2}
+        />
+      ), []);
+
+      const expandedItem = expanded !== null ? chartData.find(d => d.apiId === expanded) : null;
+      const detailMax = expandedItem && Array.isArray(detailData[expanded])
+        ? Math.max(1, ...detailData[expanded].map(x => x.count || 0))
+        : 1;
 
       return (
         <div className="card fade-in">
@@ -2074,6 +2239,10 @@
                       animationDuration={800}
                       stroke="var(--bg-surface)"
                       strokeWidth={2}
+                      activeIndex={activeIdx >= 0 ? activeIdx : undefined}
+                      activeShape={canDrill ? activeShape : undefined}
+                      onClick={canDrill ? (_, idx) => handleDrilldown(chartData[idx]) : undefined}
+                      style={canDrill ? { cursor: 'pointer' } : undefined}
                     >
                       {chartData.map((entry, idx) => (
                         <Cell key={idx} fill={CHART_COLORS[idx % CHART_COLORS.length]} />
@@ -2098,14 +2267,49 @@
                 </div>
               </div>
               <div className="legend-row">
-                {chartData.map((d, idx) => (
-                  <span key={idx}>
-                    <span className="legend-dot" style={{ background: CHART_COLORS[idx % CHART_COLORS.length] }} />
-                    <span className="legend-name">{d.name}</span>
-                    <span className="legend-num">{fmtNum(d.value)}</span>
-                  </span>
-                ))}
+                {chartData.map((d, idx) => {
+                  const isOther = d.apiId === '__other__';
+                  const isActive = expanded === d.apiId;
+                  return (
+                    <span
+                      key={idx}
+                      onClick={canDrill && !isOther ? () => handleDrilldown(d) : undefined}
+                      style={canDrill && !isOther ? { cursor: 'pointer' } : undefined}
+                      role={canDrill && !isOther ? 'button' : undefined}
+                      tabIndex={canDrill && !isOther ? 0 : undefined}
+                      onKeyDown={canDrill && !isOther ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleDrilldown(d); } } : undefined}
+                    >
+                      <span className="legend-dot" style={{ background: CHART_COLORS[idx % CHART_COLORS.length] }} />
+                      <span className="legend-name" style={isActive ? { fontWeight: 600, color: 'var(--text)' } : undefined}>{d.name}</span>
+                      <span className="legend-num">{fmtNum(d.value)}</span>
+                      {canDrill && !isOther && <span className={'row-chevron' + (isActive ? ' open' : '')} aria-hidden="true" style={{marginLeft:4}}>▸</span>}
+                    </span>
+                  );
+                })}
               </div>
+              {expandedItem && (
+                <div className="ref-panel" style={{marginTop: 8}}>
+                  <p className="ref-panel-title">{expandedItem.name} breakdown</p>
+                  {detailLoading === expanded && <div style={{fontSize:'0.82rem', color:'var(--text-muted)'}}>Loading...</div>}
+                  {detailData[expanded] && detailData[expanded].error && (
+                    <div style={{fontSize:'0.82rem', color:'var(--danger)'}}>{detailData[expanded].error}</div>
+                  )}
+                  {Array.isArray(detailData[expanded]) && detailData[expanded].length === 0 && (
+                    <div style={{fontSize:'0.82rem', color:'var(--text-muted)'}}>No detail data.</div>
+                  )}
+                  {Array.isArray(detailData[expanded]) && detailData[expanded].length > 0 && (
+                    <ul className="ref-list">
+                      {detailData[expanded].slice(0, 8).map((r, i) => (
+                        <li key={i} style={{position:'relative'}}>
+                          <span className="ref-name">{r.name || '(unknown)'}</span>
+                          <span className="row-value">{fmtNum(r.count)}</span>
+                          <span className="row-bar" style={{ width: ((r.count || 0) / detailMax * 100) + '%' }} />
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
             </>
           )}
         </div>
@@ -2119,7 +2323,7 @@
     // stay distinguishable. Single delegated mouse handler on the SVG root
     // (not per-path) so 174 countries don't each carry a listener.
     // ============================================================
-    const WorldMap = React.memo(function WorldMap({ data, total }) {
+    const WorldMap = React.memo(function WorldMap({ data, total, highlightCountry }) {
       const [tooltip, setTooltip] = useState(null);
       const wrapRef = useRef(null);
 
@@ -2161,6 +2365,8 @@
       // Memoize SVG path nodes so hover state changes don't recreate them.
       // Reconciliation still walks them, but each node is reference-equal
       // and the DOM stays untouched.
+      const highlightCode = highlightCountry ? (countryNameToCode(highlightCountry) || highlightCountry) : null;
+
       const renderedPaths = useMemo(() => {
         if (!paths) return null;
         const out = [];
@@ -2169,9 +2375,6 @@
           const has = !!entry;
           let opacity = 1;
           if (has && maxCount > 0) {
-            // Square-root scale: 0.25 (lightest) → 1.0 (darkest). Floor of
-            // 0.25 (not 0.15) keeps low-count countries clearly distinct
-            // from no-data countries against the dark map background.
             const norm = Math.sqrt(entry.count) / Math.sqrt(maxCount);
             opacity = 0.25 + norm * 0.75;
           }
@@ -2181,12 +2384,13 @@
               d={paths[code]}
               data-code={code}
               data-has={has ? '1' : '0'}
+              className={code === highlightCode ? 'map-selected' : undefined}
               fillOpacity={has ? opacity : 1}
             />
           );
         }
         return out;
-      }, [paths, byCode, maxCount]);
+      }, [paths, byCode, maxCount, highlightCode]);
 
       // Single delegated handler on the SVG root. Reads data-code from
       // event.target (which is the path under the cursor).
@@ -2735,13 +2939,13 @@
                 {/* Donuts: browsers / OS / devices — lazy on visibility (Tier 2) */}
                 <section ref={donutRowRef} className="grid grid-3" style={{marginBottom: 20}}>
                   {failed('browsers') ? <ErrCard title="Browsers" onRetry={() => retryKey('browsers')} />
-                    : ready('browsers') ? <DonutCard title="Browsers" stats={data?.browsers?.stats} />
+                    : ready('browsers') ? <DonutCard title="Browsers" stats={data?.browsers?.stats} client={client} dateRange={dateRange} demoMode={demoMode} page="browsers" demoDetails={DEMO_BROWSER_DETAILS} />
                     : <SkeletonCard />}
                   {failed('systems') ? <ErrCard title="Operating systems" onRetry={() => retryKey('systems')} />
-                    : ready('systems') ? <DonutCard title="Operating systems" stats={data?.systems?.stats} />
+                    : ready('systems') ? <DonutCard title="Operating systems" stats={data?.systems?.stats} client={client} dateRange={dateRange} demoMode={demoMode} page="systems" demoDetails={DEMO_SYSTEM_DETAILS} />
                     : <SkeletonCard />}
                   {failed('sizes') ? <ErrCard title="Devices" onRetry={() => retryKey('sizes')} />
-                    : ready('sizes') ? <DonutCard title="Devices" stats={data?.sizes?.stats} deviceMode />
+                    : ready('sizes') ? <DonutCard title="Devices" stats={data?.sizes?.stats} deviceMode client={client} dateRange={dateRange} demoMode={demoMode} page="sizes" demoDetails={DEMO_SIZE_DETAILS} />
                     : <SkeletonCard />}
                 </section>
 
@@ -2757,6 +2961,11 @@
                         stats={data?.locations?.stats}
                         prefix={(x) => <span style={{marginRight:8, fontSize:'1rem'}}>{flagFor(x.name)}</span>}
                         topSlot={<WorldMap data={data?.locations?.stats} total={totalNum} />}
+                        client={client}
+                        dateRange={dateRange}
+                        demoMode={demoMode}
+                        page="locations"
+                        demoDetails={DEMO_LOCATION_DETAILS}
                       />
                     ) : <SkeletonCard />}
                 </section>
@@ -2769,6 +2978,11 @@
                         title="Campaigns"
                         subtitle="Campaign parameters seen in traffic"
                         stats={data.campaigns.stats}
+                        client={client}
+                        dateRange={dateRange}
+                        demoMode={demoMode}
+                        page="campaigns"
+                        demoDetails={DEMO_CAMPAIGN_DETAILS}
                       />
                     </div>
                   )}
