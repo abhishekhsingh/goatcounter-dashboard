@@ -12,7 +12,7 @@ A modern, beautiful, open-source alternative dashboard for [GoatCounter](https:/
 - 🌗 **Dark & light mode** — defaults to your system preference, toggle persisted across sessions.
 - 📅 **Flexible date ranges** — Today, 7d, 30d, 90d, or a custom range.
 - 📈 **Period-over-period trends** — every KPI card compares against the previous equivalent window.
-- 🔍 **Drill into pages** — click any page in the Top Pages list to see the referrer breakdown for just that page.
+- 🔍 **Drill-down everywhere** — click any page for its referrers, any browser/OS/device for version details, any country for region breakdown, or any campaign for referrer URLs. World map highlights the selected country.
 - ⚡ **Smart loading** — KPIs and the traffic chart load first; donut, geo, and campaign breakdowns lazy-fetch only when you scroll to them.
 - 💾 **60-second response cache** — switching themes, toggling date ranges, or revisiting a tab within a minute makes zero network requests.
 - 🔁 **Per-card retry** — if a card fails (rate limit, hiccup), recover it with a single click instead of refreshing the whole dashboard.
@@ -70,11 +70,16 @@ This dashboard talks to GoatCounter's public REST API (`/api/v0`). Requests are 
 | `GET /api/v0/stats/hits` | Traffic time-series + top pages list | 1 (immediate) |
 | `GET /api/v0/stats/hits/{path_id}` | Per-page referrer drill-down (on click) | on-demand |
 | `GET /api/v0/stats/browsers` | Browser donut chart | 2 (lazy) |
+| `GET /api/v0/stats/browsers/{id}` | Browser version drill-down (on click) | on-demand |
 | `GET /api/v0/stats/systems` | OS donut chart | 2 (lazy) |
+| `GET /api/v0/stats/systems/{id}` | OS version drill-down (on click) | on-demand |
 | `GET /api/v0/stats/sizes` | Device breakdown | 2 (lazy) |
+| `GET /api/v0/stats/sizes/{id}` | Device size drill-down (on click) | on-demand |
 | `GET /api/v0/stats/locations` | Countries chart | 3 (lazy) |
+| `GET /api/v0/stats/locations/{id}` | Country region drill-down (on click) | on-demand |
 | `GET /api/v0/stats/languages` | Languages chart | 3 (lazy) |
 | `GET /api/v0/stats/campaigns` | Campaigns table (when present) | 4 (lazy) |
+| `GET /api/v0/stats/campaigns/{id}` | Campaign referrer drill-down (on click) | on-demand |
 
 **Tiering:** Tier 1 fires on initial load. Tiers 2/3/4 lazy-fetch via `IntersectionObserver` when their section enters the viewport, so the initial network burst is just 3 requests regardless of how many breakdowns the dashboard renders.
 
@@ -107,7 +112,7 @@ Working today:
 - ✅ Demo mode with realistic sample data (no account needed)
 - ✅ All 9 GoatCounter stat endpoints integrated
 - ✅ Period-over-period trend on the visitors KPI
-- ✅ Drill-down referrers per page (click any row in Top Pages)
+- ✅ Drill-down on every card — pages (referrers), browsers/OS/devices (versions), countries (regions), campaigns (referrer URLs)
 - ✅ Choropleth world map with hover tooltips (sqrt color scale)
 - ✅ Dark / light theme with system-preference default
 - ✅ Today / 7d / 30d / 90d / Custom date ranges
