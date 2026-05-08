@@ -2587,6 +2587,28 @@
         setLastUpdatedAt(Date.now());
       }, [demoMode, preset, customStart, customEnd, refreshTick]);
 
+      // Network warm-up: prime DNS, TCP, TLS, and CORS preflight before
+      // real data requests. On mobile (especially iOS Safari), the first
+      // fetch after a long tab suspension often fails because the network
+      // stack isn't ready. This throwaway request absorbs that penalty.
+      // Runs once per session; the bfcache handler resets the flag so a
+      // restore triggers a fresh warm-up.
+      const warmUpDone = useRef(false);
+      const warmUp = useCallback(async () => {
+        if (warmUpDone.current) return;
+        warmUpDone.current = true;
+        for (let i = 0; i < 3; i++) {
+          try {
+            await fetch(config.baseURL + '/api/v0/me', {
+              headers: { 'Authorization': 'Bearer ' + config.apiKey },
+            });
+            return;
+          } catch (e) {
+            if (i < 2) await new Promise(r => setTimeout(r, 300 * (i + 1)));
+          }
+        }
+      }, [config.baseURL, config.apiKey]);
+
       // Tier 1 — always fires. KPIs, traffic chart, top pages, and languages.
       // Plus the previous-period total for the trend KPI.
       // Languages is in Tier 1 (not lazy) because it sits next to Top Pages
@@ -2597,6 +2619,8 @@
         if (demoMode) return;
         const cancelledRef = { current: false };
         (async () => {
+          await warmUp();
+          if (cancelledRef.current) return;
           await runTier(['total', 'hits', 'languages'], cancelledRef);
           if (cancelledRef.current) return;
           setLastUpdatedAt(Date.now());
@@ -2617,7 +2641,7 @@
           }
         })();
         return () => { cancelledRef.current = true; };
-      }, [demoMode, client, start, end, refreshTick, runTier]);
+      }, [demoMode, client, start, end, refreshTick, runTier, warmUp]);
 
       // Tier 2 — donut row (browsers / OS / devices). Lazy on visibility.
       const [donutRowRef, donutInView] = useInView();
@@ -2647,6 +2671,15 @@
         runTier(['campaigns'], cancelledRef);
         return () => { cancelledRef.current = true; };
       }, [demoMode, campaignsInView, refreshTick, runTier]);
+
+      // bfcache restore: browser preserved the JS heap across a back/forward
+      // navigation or long tab suspension. React state is stale — force a full
+      // re-fetch by bumping refreshTick so every tier effect re-fires.
+      useEffect(() => {
+        const onPageShow = (e) => { if (e.persisted) { warmUpDone.current = false; setRefreshTick(t => t + 1); } };
+        window.addEventListener('pageshow', onPageShow);
+        return () => window.removeEventListener('pageshow', onPageShow);
+      }, []);
 
       // Tick every 10s so the "Updated Xs ago" label stays current.
       useEffect(() => {
@@ -2879,7 +2912,7 @@
                     <KPICard
                       label="Total visitors"
                       value={failed('total') ? '—' : fmtNum(totalNum)}
-                      trend={trend}
+                      trend={failed('total') ? null : trend}
                       sub={`vs previous ${presetLabel(preset)}`}
                     />
                   ) : <SkeletonKPI />}
