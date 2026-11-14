@@ -46,21 +46,15 @@ The dashboard reached your GoatCounter instance, but the server doesn't recogniz
 - **Expired or deleted key:** If you regenerated your API key in GoatCounter, the old one stops working immediately.
 - **Wrong site:** If you have multiple GoatCounter sites, make sure the key belongs to the site URL you entered.
 
-### "API key lacks read permission" (HTTP 403)
+### "API key lacks the Read statistics permission" (HTTP 403)
 
-The API key is valid but doesn't have permission to read stats. The dashboard shows this specific message to help you fix it.
+The API key is valid but is not allowed to read stats. The dashboard shows this specific message so you can fix it.
 
-GoatCounter API keys have permission levels:
+GoatCounter API keys carry independent permissions: **Record pageviews**, **Read statistics**, **Export**, **Read sites**, **Create sites** and **Update sites**. Every stats request the dashboard makes needs **Read statistics**. No other permission is needed, so grant only that one.
 
-| Permission | Can read stats? | Works with dashboard? |
-|---|---|---|
-| **Read only** | Yes | Yes |
-| **Count and read** | Yes | Yes |
-| **Count only** | No | **No**, returns 403 on every stats endpoint |
+If a key was created without **Read statistics**, the connection test (`/api/v0/me`, which needs no permission) succeeds, but every stats call fails with 403, which bounces you back to the connect screen.
 
-If you created a **"Count only"** key, the connection test (`/api/v0/me`) may succeed, but every subsequent stats call will fail with 403, which bounces you back to the connect screen.
-
-**Fix:** Go to your GoatCounter site → click your username (top right) → **Settings** → **API** tab → create a new key with **"Read only"** or **"Count & Read"** permission.
+**Fix:** In GoatCounter, click your username in the top menu, open **API**, and create a new key with **Read statistics** enabled.
 
 ---
 
@@ -72,7 +66,7 @@ The dashboard reached a server, but it returned 404 for an API endpoint. This us
 
 ### Connection works but some cards show "Failed to load" with a Retry button
 
-This is usually **rate limiting**. GoatCounter's API uses a token-bucket rate limiter (~4 requests/second for hosted instances, configurable for self-hosted). The dashboard handles this with a strict-sequential request queue and 500ms gaps between requests, but under certain conditions some requests can still get throttled:
+This is usually **rate limiting**. GoatCounter's API allows 4 requests per second by default (reported in the `X-Rate-Limit-*` response headers, and configurable on self-hosted instances). The dashboard handles this with a strict-sequential request queue and 500ms gaps between requests, but under certain conditions some requests can still get throttled:
 
 - Rapidly switching date ranges before the previous batch finishes
 - A slow or overloaded GoatCounter instance taking longer to respond
@@ -129,11 +123,11 @@ stats.example.com {
 ### Custom port or base path
 
 - **Non-standard port:** Include the port in the URL, e.g. `https://stats.example.com:8080`.
-- **`-base-path` flag:** If you run GoatCounter with `-base-path` (e.g., `example.com/stats`), enter the full base URL: `https://example.com/stats`.
+- **`-base-path` is not supported.** The connect form keeps only the scheme, host and port of the URL and drops any path, so a GoatCounter instance served under a sub-path (for example `-base-path /stats`) cannot be used with this dashboard.
 
 ### Rate limit configuration
 
-Self-hosted instances can adjust rate limits with the `-ratelimit` flag on `goatcounter serve`. If the dashboard consistently hits rate limits on your self-hosted instance, you may want to raise this value.
+Self-hosted instances can adjust rate limits with the `-ratelimit` flag on `goatcounter serve`, using the syntax `name:requests/seconds` (for example `-ratelimit api:4/1`, where 4 requests per second is the default for `api`). The server's built-in defaults also include a second API limit named `api2` of 500 requests per 3600 seconds. If the dashboard consistently hits rate limits on your self-hosted instance, you may want to raise these values.
 
 ---
 
@@ -141,7 +135,7 @@ Self-hosted instances can adjust rate limits with the `-ratelimit` flag on `goat
 
 ### Traffic chart shows wrong timezone / shifted hours
 
-GoatCounter returns hourly data bucketed in your *site's* configured timezone, not UTC. The dashboard passes this data through as-is. If hours look shifted, check your site's timezone setting in GoatCounter (Settings → Site tab).
+GoatCounter returns hourly data bucketed in your *site's* configured timezone, not UTC. The dashboard passes this data through as-is. If hours look shifted, check the timezone in your site's settings in GoatCounter. The browser, system and similar breakdowns are always in UTC.
 
 ### World map doesn't show small countries (Singapore, Monaco, Vatican, etc.)
 
@@ -169,7 +163,9 @@ The dashboard requires a modern browser with ES2020+ support:
 |---------|----------------|
 | Chrome / Edge | 80+ |
 | Firefox | 78+ |
-| Safari | 13+ |
+| Safari | 13.1+ |
+
+Two decorative styles use `color-mix()` (Chrome 111+, Firefox 113+, Safari 16.2+). Older browsers skip those styles and the dashboard still works.
 
 If using **Brave**, Brave Shields may block GoatCounter domains by default, same issue as ad blockers. Disable shields for the dashboard page.
 
@@ -195,14 +191,13 @@ This confirms the dashboard code is working correctly. Demo mode uses in-memory 
 
 ### Dashboard loads slowly on first visit
 
-The initial load makes up to 13 API calls spread across 4 lazy-load tiers:
-1. **Tier 1 (immediate):** Total visitors + traffic chart, 3 requests
+The initial load makes up to 10 API calls spread across 4 tiers (plus one more on the connect screen):
+1. **Tier 1 (immediate):** a warm-up call to `/me`, then Total visitors, Top pages and traffic chart, and Languages, 4 requests, plus 1 request for the previous-period total (trend arrow)
 2. **Tier 2 (scroll):** Browsers, OS, Devices, 3 requests
-3. **Tier 3 (scroll):** Countries, Languages, 2 requests
+3. **Tier 3 (scroll):** Countries, 1 request
 4. **Tier 4 (scroll):** Campaigns, 1 request
-5. **Previous-period comparisons:** additional requests for trend arrows
 
-Tiers 2-4 only fire when their cards scroll into view (`IntersectionObserver`), so the initial visible load is just 3 requests. On slow connections or heavily loaded GoatCounter instances, the full load can take 15-30 seconds.
+Tiers 2-4 only fire when their cards scroll into view (`IntersectionObserver`), so the initial visible load is 5 requests. On slow connections or heavily loaded GoatCounter instances, the full load can take 15-30 seconds.
 
 Subsequent interactions are faster thanks to the 60-second response cache.
 

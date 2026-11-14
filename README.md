@@ -11,16 +11,16 @@ An open-source alternative dashboard for [GoatCounter](https://www.goatcounter.c
 - **Demo mode:** one click on the connect screen loads the full dashboard with realistic sample data. No API key, no account, no setup. Useful for trying before connecting and for sharing on social/forums.
 - **Dark and light mode:** defaults to your system preference, toggle persisted across sessions.
 - **Flexible date ranges:** Today, 7d, 30d, 90d, or a custom range.
-- **Period-over-period trends:** every KPI card compares against the previous equivalent window.
+- **Period-over-period trend:** the Total visitors KPI shows a trend arrow against the previous equivalent window.
 - **Drill-down everywhere:** click any page for its referrers, any browser/OS/device for version details, any country for region breakdown, or any campaign for referrer URLs. World map highlights the selected country.
 - **Smart loading:** KPIs and the traffic chart load first; donut, geo, and campaign breakdowns lazy-fetch only when you scroll to them.
-- **60-second response cache:** switching themes, toggling date ranges, or revisiting a tab within a minute makes zero network requests.
+- **60-second response cache:** switching themes, or returning to a date range or tab you viewed within the last minute, makes zero network requests.
 - **Per-card retry:** if a card fails (rate limit, hiccup), recover it with a single click instead of refreshing the whole dashboard.
-- **Rate-limit aware:** strictly sequential request queue with a 500ms gap; never bursts the GoatCounter API.
+- **Rate-limit aware:** strictly sequential request queue with a 500ms gap between requests, so it stays well under GoatCounter's rate limit.
 - **Loading indicator:** "Loading X of Y..." while fetching, "Updated Xs ago" when idle.
 - **Fully responsive:** single column on mobile, two-column on tablet, full grid on desktop.
 - **Zero build step:** single `index.html`, React + Recharts loaded from CDN. Open in a browser and it works.
-- **Privacy-first:** your API key is stored only in your browser's localStorage. Nothing is sent anywhere except the GoatCounter API directly.
+- **Privacy-first:** your API key is stored only in your browser's localStorage, and your key and stats are only ever sent to your own GoatCounter instance.
 - **Accessible:** proper ARIA roles, keyboard navigation, focus indicators, and skeleton loading states.
 
 ## 🚀 Quick Start
@@ -54,9 +54,9 @@ python3 -m http.server 8000
 ## 🔑 Getting a GoatCounter API Key
 
 1. Log into your GoatCounter site.
-2. Click your username (top right) > **Settings** > **API** tab.
-3. Click **Create key**.
-4. Grant the **Count** and **Read statistics** permissions.
+2. Click your username in the top menu, then **API**.
+3. Under **Add new API Token**, enter a name and tick only the **Read statistics** permission. The dashboard does not need any other permission.
+4. Choose which sites the key can access, then click **Add new**.
 5. Copy the key and paste it into the connect screen.
 
 ## 📡 API Endpoints Used
@@ -77,11 +77,11 @@ This dashboard talks to GoatCounter's public REST API (`/api/v0`). Requests are 
 | `GET /api/v0/stats/sizes/{id}` | Device size drill-down (on click) | on-demand |
 | `GET /api/v0/stats/locations` | Countries chart | 3 (lazy) |
 | `GET /api/v0/stats/locations/{id}` | Country region drill-down (on click) | on-demand |
-| `GET /api/v0/stats/languages` | Languages chart | 3 (lazy) |
+| `GET /api/v0/stats/languages` | Languages chart | 1 (immediate) |
 | `GET /api/v0/stats/campaigns` | Campaigns table (when present) | 4 (lazy) |
 | `GET /api/v0/stats/campaigns/{id}` | Campaign referrer drill-down (on click) | on-demand |
 
-**Tiering:** Tier 1 fires on initial load. Tiers 2/3/4 lazy-fetch via `IntersectionObserver` when their section enters the viewport, so the initial network burst is just 3 requests regardless of how many breakdowns the dashboard renders.
+**Tiering:** Tier 1 fires on initial load: a warm-up call to `/me`, then `total`, `hits` and `languages`, then the previous-period `total` for the trend arrow. That is 5 requests. Tiers 2/3/4 lazy-fetch via `IntersectionObserver` when their section enters the viewport, so the initial load stays at 5 requests regardless of how many breakdowns the dashboard renders.
 
 **Caching:** every successful response is cached in `localStorage` for 60 seconds keyed by `(baseURL, endpoint, params)`. Refresh in the settings menu clears the cache and forces a fresh fetch; Disconnect wipes both the cache and stored credentials.
 
@@ -110,7 +110,7 @@ Working today:
 
 - Connect / disconnect with persisted credentials
 - Demo mode with realistic sample data (no account needed)
-- All 9 GoatCounter stat endpoints integrated
+- All the GoatCounter stats endpoints the dashboard needs (total, hits, browsers, systems, sizes, locations, languages, campaigns) plus per-item drill-downs
 - Period-over-period trend on the visitors KPI
 - Drill-down on every card: pages (referrers), browsers/OS/devices (versions), countries (regions), campaigns (referrer URLs)
 - Choropleth world map with hover tooltips (sqrt color scale)
@@ -142,9 +142,9 @@ These keep the dashboard simple and trustworthy. PRs that violate them are unlik
 
 - **No runtime build step.** The dashboard runs in the browser as-is. The single static asset that's "built" (`assets/world-map.js`) is regenerated only when the underlying country dataset needs updating, via `scripts/build-world-map.js`. Routine code changes don't need npm. The dashboard itself never sees Node.
 - **No new runtime dependencies** beyond the five already loaded from a CDN (React, ReactDOM, prop-types, Recharts, Babel-standalone). `prop-types` looks unused if you grep the source, but Recharts' UMD build calls it during module init; removing the script tag silently breaks all charts. Adding another script tag needs a strong reason and an issue to discuss it first.
-- **No analytics, telemetry, or tracking.** This is a privacy-friendly dashboard for a privacy-friendly analytics tool, it cannot phone home. The only network calls allowed are to the user's GoatCounter instance.
+- **No analytics, telemetry, or tracking.** This is a privacy-friendly dashboard for a privacy-friendly analytics tool, it cannot phone home. The only data requests go to the user's GoatCounter instance (fonts and scripts load from Google Fonts and unpkg).
 - **No backend.** No server-side proxy, no serverless function, no edge worker. Everything must run in the browser against the GoatCounter API directly.
-- **Credentials stay local.** API keys live in `localStorage` and only travel to the user's GoatCounter site over HTTPS. Never log them, never send them anywhere else.
+- **Credentials stay local.** API keys live in `localStorage` and are only sent to the user's GoatCounter site. Use an `https://` URL: the connect form adds `https://` when no scheme is given but does not block a typed `http://`. Never log keys, never send them anywhere else.
 - **Keep it deployable to GitHub Pages.** Anything that breaks plain static hosting (relative paths, framework conventions, etc.) is out of scope.
 - **Match the existing style.** Plain CSS with custom properties, no Tailwind / styled-components / CSS-in-JS. React function components with hooks. No class components.
 

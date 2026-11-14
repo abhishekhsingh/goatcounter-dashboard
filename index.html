@@ -9,6 +9,16 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+  <script>
+    // Apply the saved (or system) theme before first paint so light-theme users
+    // do not see a dark flash. Mirrors the initial state of useTheme() below.
+    (function () {
+      var t = null;
+      try { t = localStorage.getItem('gc-dashboard-theme-v1'); } catch (e) {}
+      if (!t && window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) t = 'light';
+      if (t) document.documentElement.setAttribute('data-theme', t);
+    })();
+  </script>
   <style>
     /* ====== THEME TOKENS ====== */
     :root[data-theme="dark"] {
@@ -1446,7 +1456,7 @@
           throw err;
         }
         if (res.status === 403) {
-          const err = new Error('API key lacks read permission. Go to your GoatCounter settings, API tab, and create a key with "Read only" or "Count & Read" access.');
+          const err = new Error('API key lacks the "Read statistics" permission. In GoatCounter, click your username, open API, and create a key with "Read statistics" enabled.');
           err.status = 403; err.kind = 'auth';
           throw err;
         }
@@ -1700,8 +1710,8 @@
 
             <div className="help-box">
               <strong>How to get an API key:</strong> Log into GoatCounter →
-              user menu (top right) → <em>Settings</em> → <em>API</em> tab → <em>Create key</em>.
-              Grant the <em>Count</em> &amp; <em>Read statistics</em> permissions.
+              click your username in the top menu → <em>API</em> → add a new token with
+              only the <em>Read statistics</em> permission.
             </div>
           </form>
         </div>
