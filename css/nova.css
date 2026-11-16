@@ -12,7 +12,7 @@
   --grid: rgb(190 170 255 / .07); --ghost: rgb(34 211 238 / .55);
   --line-a: #a78bfa; --line-b: #22d3ee; --area: #a78bfa;
   --c1: #a78bfa; --c2: #22d3ee; --c3: #f472b6; --c4: #fbbf24; --c5: #34d399; --c6: #60a5fa; --c7: #8f89b6;
-  --heat-0: rgb(190 170 255 / .06); --heat-1: #2a2063; --heat-2: #5b3fd1; --heat-3: #22d3ee; --heat-4: #f9a8d4;
+  --heat-0: rgb(190 170 255 / .06); --heat-1: #2a2063; --heat-2: #5b3fd1; --heat-3: #a78bfa; --heat-4: #f9d0ec;
   --radius: 22px; --gap: 18px;
   --card-bg: linear-gradient(160deg, rgb(34 29 68 / .74), rgb(14 12 30 / .82));
   --card-border: var(--hair-2);
@@ -75,3 +75,5 @@
 [data-look="nova"] .dn .seg { filter: drop-shadow(0 0 7px color-mix(in oklab, var(--c) 55%, transparent)); }
 [data-look="nova"] { --seg-mix: 55%; }
 [data-look="nova"] #globe { filter: drop-shadow(0 0 40px color-mix(in oklab, var(--accent) 28%, transparent)); }
+[data-look="nova"] .cell.l4 { filter: drop-shadow(0 0 4px color-mix(in oklab, var(--heat-4) 70%, transparent)); }
+[data-look="nova"] .ring { filter: drop-shadow(0 0 5px color-mix(in oklab, currentColor 40%, transparent)); }

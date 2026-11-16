@@ -69,6 +69,25 @@ function HeatGrid({ m, n, onNote }) {
     ${vals.map((row, r) => html`<${Fragmentish} key=${r}><span class="hl">${DAYS[r]}</span>${row.map((v, c) => html`<span key=${c} class="hc" style=${{ '--hc': `var(--heat-${level(v)})` }} onPointerEnter=${() => onNote(`${DAYS[r]} at ${hourLabel(c)}: ${fmtFull(v)} visitors on average`)} onPointerLeave=${() => onNote('')}></span>`)}<//>`)}
   </div>`;
 }
+
+// A 24-hour clock: one wedge per hour, noon at the bottom and midnight at the top. Longer wedges are busier hours.
+function HourClock({ m, onNote }) {
+  const [hot, setHot] = useState(null);
+  const hourly = Array.from({ length: 24 }, (_, h) => m.reduce((a, row) => a + row[h], 0) / 7);
+  const mx = Math.max(1, ...hourly), peak = hourly.indexOf(Math.max(...hourly));
+  const cx = 130, cy = 130, R0 = 46, R1 = 108;
+  const pt = (r, deg) => [cx + r * Math.cos(((deg - 90) * Math.PI) / 180), cy + r * Math.sin(((deg - 90) * Math.PI) / 180)];
+  const wedge = (h, r) => { const a0 = h * 15 + 1, a1 = h * 15 + 14, [x0, y0] = pt(R0, a0), [x1, y1] = pt(r, a0), [x2, y2] = pt(r, a1), [x3, y3] = pt(R0, a1); return `M${x0},${y0}L${x1},${y1}A${r},${r} 0 0 1 ${x2},${y2}L${x3},${y3}A${R0},${R0} 0 0 0 ${x0},${y0}Z`; };
+  const label = (h) => [['12a', 0], ['6a', 6], ['12p', 12], ['6p', 18]].find((x) => x[1] === h);
+  return html`<div class="clock-wrap">
+    <svg class="clock" viewBox="0 0 260 260" role="img" aria-label=${`24 hour clock of visitors. Busiest around ${hourLabel(peak)}.`}>
+      <circle cx=${cx} cy=${cy} r=${R0 - 4} fill="none" stroke="var(--hair)"/><circle cx=${cx} cy=${cy} r=${R1} fill="none" stroke="var(--hair)" stroke-dasharray="2 5"/>
+      ${hourly.map((v, h) => html`<path key=${h} class="wedge" d=${wedge(h, R0 + Math.max(3, (v / mx) * (R1 - R0)))} style=${{ fill: h === peak ? 'var(--hot)' : 'var(--accent)', opacity: hot === null ? 0.3 + 0.7 * (v / mx) : hot === h ? 1 : 0.25, animationDelay: h * 22 + 'ms' }} onPointerEnter=${() => { setHot(h); onNote(`${hourLabel(h)}: ${fmtFull(v)} visitors an hour on a typical day`); }} onPointerLeave=${() => { setHot(null); onNote(''); }}/>`)}
+      ${[0, 6, 12, 18].map((h) => { const [x, y] = pt(R1 + 15, h * 15); return html`<text key=${h} x=${x} y=${y + 3} text-anchor="middle" class="cal-t">${label(h)[0]}</text>`; })}
+      <text x=${cx} y=${cy - 2} text-anchor="middle" class="clock-big">${hourLabel(hot === null ? peak : hot)}</text>
+      <text x=${cx} y=${cy + 14} text-anchor="middle" class="cal-t">${hot === null ? 'busiest hour' : 'typical hour'}</text>
+    </svg></div>`;
+}
 const Fragmentish = ({ children }) => children;
 
 export function TimePatterns({ api, tz, look, theme, now }) {
@@ -79,9 +98,12 @@ export function TimePatterns({ api, tz, look, theme, now }) {
   const hw = useMemo(() => (data ? hourWeekday(data) : null), [data]);
   const enough = hw && hw.m.flat().reduce((a, b) => a + b, 0) >= 60;
   return html`<section class="card span-12" ref=${ref} aria-label="When readers show up">
-    <div class="card-h"><div><h2>When your readers show up</h2><p class="sub">Average visitors by weekday and hour over the last 90 days, in the site's time zone</p></div></div>
+    <div class="card-h"><div><h2>When your readers show up</h2><p class="sub">Typical visitors by weekday and hour over the last 90 days, in the site's time zone</p></div></div>
     ${error ? html`<${ErrorBox} error=${error} retry=${retry} />` : !data ? html`<${Skeleton} h=${240} r="12px" />` : !enough ? html`<div class="empty">Not enough traffic yet to show a pattern.</div>` : html`
-      ${look === 'nova' ? html`<${Skyline} m=${hw.m} n=${hw.n} themeKey=${look + theme} onNote=${setNote} />` : html`<${HeatGrid} m=${hw.m} n=${hw.n} onNote=${setNote} />`}
+      <div class="pat">
+        <div class="pat-main">${look === 'nova' ? html`<${Skyline} m=${hw.m} n=${hw.n} themeKey=${look + theme} onNote=${setNote} />` : html`<${HeatGrid} m=${hw.m} n=${hw.n} onNote=${setNote} />`}</div>
+        <div class="pat-clock"><${HourClock} m=${hw.m} onNote=${setNote} /></div>
+      </div>
       <div class="sky-note" aria-live="polite">${note}</div>`}
   </section>`;
 }

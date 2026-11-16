@@ -162,7 +162,7 @@ a { color: var(--accent); }
 
 /* ---------- look switch ---------- */
 .kpi .glare { display: none; }
-.looksw { display: flex; padding: 3px; gap: 2px; border: 1px solid var(--hair); border-radius: 12px; background: var(--surface); }
+.looksw-unused { display: flex; padding: 3px; gap: 2px; border: 1px solid var(--hair); border-radius: 12px; background: var(--surface); }
 .looksw button { border: 0; background: none; padding: 7px 11px; min-height: 36px; border-radius: 9px; font: 600 .78rem var(--font); color: var(--text-2); }
 .looksw button[aria-pressed="true"] { background: var(--hair-2); color: var(--text); }
 
@@ -197,3 +197,81 @@ a { color: var(--accent); }
 
 /* The static splash uses the system font so the web fonts do not compete with the app's scripts for bandwidth. */
 #boot, #boot * { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif !important; }
+
+/* ---------- appearance popover ---------- */
+.pop { margin: 0; inset: auto; position: fixed; top: 74px; right: 20px; width: min(310px, calc(100vw - 28px)); padding: 16px; border: 1px solid var(--hair-2); border-radius: 18px; background: var(--surface); color: var(--text); box-shadow: 0 24px 70px rgb(0 0 0 / .45); }
+.pop fieldset { border: 0; padding: 0; margin: 0; display: grid; gap: 6px; }
+.pop legend { padding: 0; margin-bottom: 8px; font: 500 .68rem var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--text-3); }
+.pop label { display: flex; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--hair); cursor: pointer; }
+.pop label.on, .pop label:hover { border-color: var(--accent); background: color-mix(in oklab, var(--accent) 10%, transparent); }
+.pop label b { display: block; font-size: .9rem; } .pop label small { display: block; color: var(--text-3); font-size: .74rem; }
+.pop input { accent-color: var(--accent); }
+.pop .pin { display: flex; align-items: center; gap: 8px; width: 100%; margin-top: 12px; padding: 10px 12px; border: 1px dashed var(--hair-2); border-radius: 12px; background: none; color: var(--text-2); font: 600 .8rem var(--font); text-align: left; }
+.pop .pin:hover { color: var(--accent); border-color: var(--accent); }
+.pop .pin[aria-pressed="true"] { color: var(--accent); border-style: solid; border-color: var(--accent); background: color-mix(in oklab, var(--accent) 10%, transparent); }
+.pop .note { margin: 8px 2px 0; font-size: .72rem; color: var(--text-3); line-height: 1.4; }
+
+/* ---------- year card ---------- */
+.year { display: grid; grid-template-columns: minmax(0, 1fr) 270px; gap: 28px; align-items: start; }
+@media (max-width: 960px) { .year { grid-template-columns: minmax(0, 1fr); } }
+.cal-scroll { overflow-x: auto; padding-bottom: 6px; }
+.cal { display: block; }
+.cal-t { font: 400 10px var(--mono); fill: var(--text-3); }
+.cell { fill: var(--hc); animation: cell-in .5s var(--ease) backwards; }
+@keyframes cell-in { from { opacity: 0; transform: scale(.4); } }
+.cal-foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 4px; }
+.cal-legend { display: inline-flex; align-items: center; gap: 4px; font: 400 .7rem var(--mono); color: var(--text-3); }
+.cal-legend i { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
+.streaks { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 14px; }
+@media (max-width: 560px) { .streaks { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.streaks div { padding: 12px 14px; border-radius: 12px; border: 1px solid var(--hair); background: color-mix(in oklab, var(--surface-2) 70%, transparent); }
+.streaks b { display: block; font-size: 1.5rem; letter-spacing: -.03em; } .streaks span { font: 400 .72rem var(--mono); color: var(--text-3); }
+.goal { position: relative; display: grid; justify-items: center; gap: 12px; }
+.rings { width: 168px; height: 168px; }
+.goal-ctr { position: absolute; top: 0; width: 168px; height: 168px; display: grid; place-content: center; text-align: center; pointer-events: none; }
+.goal-ctr b { font-size: 1.5rem; letter-spacing: -.03em; } .goal-ctr span { font: 500 .6rem var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--text-3); }
+@keyframes ring-in { from { stroke-dasharray: 0 var(--C); } }
+.goal-key { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; width: 100%; font-size: .82rem; color: var(--text-2); }
+.goal-key i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; }
+.goal-key b { color: var(--text); margin-left: 4px; }
+.goal-edit { display: flex; align-items: center; gap: 8px; padding-left: 16px; }
+.goal-edit input { width: 110px; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--hair-2); background: var(--surface-2); color: var(--text); font: 500 .85rem var(--mono); }
+.goal-edit .hint { font: 400 .7rem var(--mono); color: var(--text-3); }
+.linkbtn { border: 0; background: none; color: var(--accent); font: 500 .74rem var(--font); cursor: pointer; text-decoration: underline; padding: 0; }
+
+/* ---------- hour clock ---------- */
+.pat { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 24px; align-items: center; }
+@media (max-width: 1000px) { .pat { grid-template-columns: minmax(0, 1fr); } .pat-clock { max-width: 260px; margin: 0 auto; } }
+.clock { display: block; width: 100%; }
+.wedge { transition: opacity .15s; cursor: pointer; animation: wedge-in .6s var(--ease) backwards; transform-origin: 130px 130px; }
+@keyframes wedge-in { from { opacity: 0; transform: scale(.6); } }
+.clock-big { font: 500 22px var(--mono); fill: var(--text); letter-spacing: -.03em; }
+
+/* ---------- sankey ---------- */
+.sankey { display: block; max-width: 100%; }
+.sk-l { font: 400 11.5px var(--font); fill: var(--text-2); }
+.ribbon { transition: opacity .2s; cursor: pointer; }
+
+/* ---------- command palette ---------- */
+.palette { padding: 0; border: 1px solid var(--hair-2); border-radius: 18px; background: var(--surface); color: var(--text); width: min(560px, calc(100vw - 28px)); max-height: min(520px, 80vh); margin: 12vh auto auto; overflow: hidden; box-shadow: 0 30px 90px rgb(0 0 0 / .55); }
+.palette::backdrop { background: rgb(0 0 0 / .5); backdrop-filter: blur(4px); }
+.pal-in { display: flex; flex-direction: column; max-height: min(520px, 80vh); }
+.pal-in input { border: 0; border-bottom: 1px solid var(--hair); background: none; color: var(--text); padding: 18px 20px; font: 400 1rem var(--font); outline: none; }
+.pal-in ul { list-style: none; margin: 0; padding: 8px; overflow-y: auto; }
+.pal-g { padding: 10px 12px 4px; font: 500 .66rem var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--text-3); }
+.pal-in li[role="option"] { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 10px; cursor: pointer; font-size: .9rem; }
+.pal-in li.on { background: color-mix(in oklab, var(--accent) 16%, transparent); }
+.pal-none { padding: 18px 12px; color: var(--text-3); }
+kbd { font: 500 .72rem var(--mono); padding: 2px 7px; border-radius: 6px; border: 1px solid var(--hair-2); background: var(--surface-2); color: var(--text-2); }
+.pal-foot { display: flex; gap: 16px; padding: 10px 16px; border-top: 1px solid var(--hair); font: 400 .72rem var(--mono); color: var(--text-3); }
+.pal-foot kbd { margin-right: 4px; }
+
+/* ---------- recap dialog ---------- */
+.recap { padding: 0; border: 1px solid var(--hair-2); border-radius: 20px; background: var(--surface); color: var(--text); width: min(460px, calc(100vw - 24px)); max-height: 94vh; overflow: auto; box-shadow: 0 30px 90px rgb(0 0 0 / .55); }
+.recap::backdrop { background: rgb(0 0 0 / .55); backdrop-filter: blur(4px); }
+.recap-in { padding: 18px; }
+.recap-h { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.recap-h h2 { margin: 0; font-size: 1rem; }
+.recap-prev img { display: block; width: 100%; border-radius: 14px; border: 1px solid var(--hair); }
+.recap .note { font-size: .74rem; color: var(--text-3); margin: 10px 2px; }
+.recap .btns { margin-top: 4px; }

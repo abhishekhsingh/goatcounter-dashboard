@@ -8,14 +8,22 @@
 <meta name="theme-color" content="#06050f">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.88em' font-size='88'%3E%F0%9F%90%90%3C/text%3E%3C/svg%3E">
 <script>
-// Dark first. Apply the saved look and theme before first paint so there is no flash.
+// A new visit opens in Nova dark. A choice lasts for the tab (sessionStorage) and is kept for later visits only
+// if the visitor turns on "Remember my choice" (localStorage). Applied before first paint so there is no flash.
 (function () {
-  var t = 'dark', look = 'nova';
-  try { t = localStorage.getItem('gc-dashboard-theme-v1') || 'dark'; } catch (e) {}
-  try { look = localStorage.getItem('gc-dashboard-look-v1') || 'nova'; } catch (e) {}
-  if (look !== 'classic') look = 'nova';
-  document.documentElement.setAttribute('data-theme', t === 'light' ? 'light' : 'dark');
-  document.documentElement.setAttribute('data-look', look);
+  var t = 'dark', look = 'nova', pref = {};
+  try { pref = JSON.parse(sessionStorage.getItem('gc-dashboard-session') || localStorage.getItem('gc-dashboard-pref') || '{}') || {}; } catch (e) {}
+  if (pref.t === 'light') t = 'light';
+  if (pref.l === 'classic') look = 'classic';
+  var d = document.documentElement;
+  d.setAttribute('data-theme', t);
+  d.setAttribute('data-look', look);
+  window.gcPref = {
+    now: function () { return JSON.stringify({ l: d.getAttribute('data-look'), t: d.getAttribute('data-theme') }); },
+    save: function () { try { var v = this.now(); sessionStorage.setItem('gc-dashboard-session', v); if (localStorage.getItem('gc-dashboard-pref')) localStorage.setItem('gc-dashboard-pref', v); } catch (e) {} },
+    pinned: function () { try { return !!localStorage.getItem('gc-dashboard-pref'); } catch (e) { return false; } },
+    pin: function (on) { try { if (on) localStorage.setItem('gc-dashboard-pref', this.now()); else localStorage.removeItem('gc-dashboard-pref'); } catch (e) {} }
+  };
   document.write('<link rel="stylesheet" href="css/app.css">');
   document.write('<link rel="stylesheet" href="css/' + look + '.css" id="look-css-' + look + '">');
 })();
@@ -30,6 +38,10 @@
 <link rel="modulepreload" href="js/components/hero.js">
 <link rel="modulepreload" href="js/components/cards.js">
 <link rel="modulepreload" href="js/components/connect.js">
+<link rel="modulepreload" href="js/components/year.js">
+<link rel="modulepreload" href="js/components/sankey.js">
+<link rel="modulepreload" href="js/components/palette.js">
+<link rel="modulepreload" href="js/components/recap.js">
 <link rel="modulepreload" href="js/fx.js">
 <link rel="modulepreload" href="js/countries.js">
 <link rel="modulepreload" href="js/components/breakdown.js">
