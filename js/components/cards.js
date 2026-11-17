@@ -172,6 +172,13 @@ export function CountriesCard({ api, range, ttl, look, theme }) {
         const lit = ranked.slice(0, 7), t0 = performance.now();
         const arcs = ranked.slice(1, 8).map(([c], i) => ({ a: unit(cent[top[0]]), b: unit(cent[c]), start: 500 + i * 380 }));
         const ctx = over.getContext('2d');
+        // Glows are small pre-drawn images and layered strokes, never canvas shadows: a canvas shadow blur is repainted by the CPU on every frame and cost 50 ms a frame at 2x.
+        const rgb = (h, a) => { const [r, g2, b] = hexToRgb(h); return `rgba(${Math.round(r * 255)},${Math.round(g2 * 255)},${Math.round(b * 255)},${a})`; };
+        const sprite = (col, r) => { const c = document.createElement('canvas'); c.width = c.height = Math.ceil(r * 2 * dpr); const x = c.getContext('2d'), m = c.width / 2, gr = x.createRadialGradient(m, m, 0, m, m, m); gr.addColorStop(0, rgb(col, 0.9)); gr.addColorStop(0.3, rgb(col, 0.4)); gr.addColorStop(1, rgb(col, 0)); x.fillStyle = gr; x.fillRect(0, 0, c.width, c.height); return { c, r }; };
+        const glow = { cool: sprite(cool, 11), hot: sprite(hot, 17) };
+        const blob = (sp, x, y) => ctx.drawImage(sp.c, x - sp.r, y - sp.r, sp.r * 2, sp.r * 2);
+        const path = (pts, from, to) => { ctx.beginPath(); let pen = false; for (let i = from; i <= to; i++) { const q = pts[i]; if (!q.seen) { pen = false; continue; } if (!pen) { ctx.moveTo(q.x, q.y); pen = true; } else ctx.lineTo(q.x, q.y); } };
+        let tick = 0;
         const drawOver = (now, ph) => {
           const t = reduced ? 1e6 : now - t0, R = size * 0.4, cx = size / 2;
           ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, size, size);
@@ -182,17 +189,18 @@ export function CountriesCard({ api, range, ttl, look, theme }) {
             const w = Math.acos(Math.max(-1, Math.min(1, arc.a[0] * arc.b[0] + arc.a[1] * arc.b[1] + arc.a[2] * arc.b[2]))), lift = 0.1 + 0.2 * (w / Math.PI), N = 40, pts = [];
             for (let i = 0; i <= N; i++) { const u = i / N, so = Math.sin(w) || 1, ka = Math.sin((1 - u) * w) / so, kb = Math.sin(u * w) / so, v = [ka * arc.a[0] + kb * arc.b[0], ka * arc.a[1] + kb * arc.b[1], ka * arc.a[2] + kb * arc.b[2]]; pts.push(at(v, 1 + lift * Math.sin(Math.PI * u))); }
             const end = Math.round(N * grow);
-            ctx.strokeStyle = cool; ctx.shadowColor = cool; ctx.shadowBlur = 6; ctx.lineWidth = 1.4;
-            for (let i = 1; i <= end; i++) { const p0 = pts[i - 1], p1 = pts[i]; if (!p0.seen || !p1.seen) continue; ctx.globalAlpha = 0.25 + 0.6 * (i / N); ctx.beginPath(); ctx.moveTo(p0.x, p0.y); ctx.lineTo(p1.x, p1.y); ctx.stroke(); }
-            ctx.shadowBlur = 0; ctx.globalAlpha = 1;
+            ctx.lineWidth = 7; ctx.strokeStyle = rgb(cool, 0.07); path(pts, 0, end); ctx.stroke(); // soft halo
+            ctx.lineWidth = 3.5; ctx.strokeStyle = rgb(cool, 0.15); path(pts, 0, end); ctx.stroke();
+            ctx.lineWidth = 1.4; // the line itself brightens toward its far end, in four steps
+            for (let k = 0; k < 4; k++) { const f = Math.floor((end * k) / 4), t2 = Math.min(end, Math.floor((end * (k + 1)) / 4) + 1); if (t2 <= f) continue; ctx.strokeStyle = rgb(cool, 0.3 + 0.2 * k); path(pts, f, t2); ctx.stroke(); }
             const head = grow < 1 ? pts[end] : (reduced ? null : pts[Math.floor(((t - arc.start) / 2600) % 1 * N)]);
-            if (head && head.seen) { ctx.fillStyle = '#fff'; ctx.shadowColor = cool; ctx.shadowBlur = 10; ctx.beginPath(); ctx.arc(head.x, head.y, 2.2, 0, 7); ctx.fill(); ctx.shadowBlur = 0; }
+            if (head && head.seen) { blob(glow.cool, head.x, head.y); ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(head.x, head.y, 2.2, 0, 7); ctx.fill(); }
           }
           lit.forEach(([c, v], i) => { // pulse rings on the busiest countries, and a bright centre on the top one
             const p = at(unit(cent[c])); if (p.z < 0.08) return; const vis = Math.min(1, (p.z - 0.08) / 0.3), col = i === 0 ? hot : cool;
             ctx.strokeStyle = col; ctx.lineWidth = 1.5;
             for (const off2 of [0, 0.5]) { const ph2 = reduced ? 0.35 : ((t / 3200 + i * 0.17 + off2) % 1); ctx.globalAlpha = Math.pow(1 - ph2, 1.6) * 0.8 * vis; ctx.beginPath(); ctx.arc(p.x, p.y, 4 + 20 * ph2, 0, 7); ctx.stroke(); }
-            if (i === 0) { ctx.globalAlpha = vis; ctx.fillStyle = hot; ctx.shadowColor = hot; ctx.shadowBlur = 12; ctx.beginPath(); ctx.arc(p.x, p.y, 5, 0, 7); ctx.fill(); ctx.shadowBlur = 0; }
+            if (i === 0) { ctx.globalAlpha = vis; blob(glow.hot, p.x, p.y); ctx.fillStyle = hot; ctx.beginPath(); ctx.arc(p.x, p.y, 5, 0, 7); ctx.fill(); }
             ctx.globalAlpha = 1;
           });
           ctx.font = '600 11.5px "Space Grotesk", system-ui, sans-serif'; ctx.textBaseline = 'middle';
@@ -204,7 +212,7 @@ export function CountriesCard({ api, range, ttl, look, theme }) {
           });
         };
         g = createGlobe(canvas, { devicePixelRatio: dpr, width: canvas.width, height: canvas.height, phi, theta, dark: light ? 0 : 1, diffuse: light ? 1.2 : 1.6, mapSamples: 22000, mapBrightness: light ? 2.4 : 8, baseColor: light ? base : base.map((c) => c * 1.8 + 0.1), markerColor: hexToRgb(cssVar('--accent')), glowColor: light ? [0.85, 0.82, 1] : hexToRgb(cssVar('--accent-2')).map((c) => c * 0.8), markers,
-          onRender: (st) => { if (drag === null && !reduced) phi += 0.0045; st.phi = phi + off; if (!reduced || dirty) { drawOver(performance.now(), phi + off); dirty = false; } } });
+          onRender: (st) => { if (drag === null && !reduced) phi += 0.0045; st.phi = phi + off; /* the sphere turns at full rate, the overlay at half: it moves slowly and costs less */ if ((!reduced && (tick++ & 1) === 0) || dirty) { drawOver(performance.now(), phi + off); dirty = false; } } });
         const down = (e) => { drag = e.clientX; canvas.setPointerCapture(e.pointerId); canvas.style.cursor = 'grabbing'; };
         const move = (e) => { if (drag !== null) { off += (e.clientX - drag) * 0.006; drag = e.clientX; dirty = true; } };
         const up = () => { drag = null; canvas.style.cursor = 'grab'; };
@@ -216,8 +224,8 @@ export function CountriesCard({ api, range, ttl, look, theme }) {
   }, [view, mapReady, cent, rows, onScreen, theme, look]);
   useEffect(() => {
     if (!wrap.current || typeof IntersectionObserver === 'undefined') return;
-    const io = new IntersectionObserver((es) => setOnScreen(es[0].isIntersecting), { rootMargin: '100px' });
-    io.observe(wrap.current);
+    const io = new IntersectionObserver((es) => setOnScreen(es[0].isIntersecting), { rootMargin: '40px' });
+    io.observe(view === 'globe' && box.current ? box.current : wrap.current); // the globe itself, so it stops as soon as it is gone
     return () => io.disconnect();
   }, [data, view]);
 
