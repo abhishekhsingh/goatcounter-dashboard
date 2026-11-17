@@ -17,7 +17,7 @@ a { color: var(--accent); }
 .brand { display: flex; align-items: center; gap: 12px; min-width: 0; flex: 1 1 220px; }
 .mark { width: 42px; height: 42px; flex: none; border-radius: 13px; display: grid; place-items: center; font-size: 25px; line-height: 1; background: var(--surface-2); border: 1px solid var(--hair-2); }
 .brand h1 { margin: 0; font-size: 1.05rem; font-weight: 600; letter-spacing: -.01em; line-height: 1.2; }
-.brand p { margin: 0; font: 400 .78rem var(--mono); color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.brand p { margin: 0; font: 400 .78rem var(--mono); color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .pills { max-width: 100%; overflow-x: auto; scrollbar-width: none; display: flex; padding: 3px; gap: 2px; border: 1px solid var(--hair); border-radius: 12px; background: var(--surface); box-shadow: var(--sheen); }
 .pill { border: 0; background: none; padding: 7px 12px; min-height: 36px; border-radius: 9px; font: 500 .82rem var(--font); color: var(--text-2); transition: color .12s, background .12s; }
@@ -135,6 +135,40 @@ a { color: var(--accent); }
 
 /* ---------- view transition for the theme switch ---------- */
 ::view-transition-old(root), ::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
+
+/* ---------- section rail ---------- */
+.anchor { display: block; grid-column: 1 / -1; height: 0; margin-bottom: calc(-1 * var(--gap)); scroll-margin-top: 14px; }
+main > .anchor { margin: 0; }
+.rail { display: none; }
+@media (min-width: 1280px) {
+  .rail { display: block; position: fixed; left: 14px; top: 50%; z-index: 40; transform: translateY(-50%); }
+  .rail ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+  .rail a { position: relative; display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: 10px; font: 500 .68rem var(--mono); letter-spacing: .08em; color: var(--text-2); text-decoration: none; transition: color .15s, background .15s; }
+  .rail a:hover, .rail a:focus-visible { color: var(--text); background: color-mix(in oklab, var(--surface) 80%, transparent); }
+  .rail a.on { color: var(--accent); }
+  .rail .n::after { content: ""; display: block; height: 1px; width: 10px; margin-top: 3px; background: currentColor; opacity: .5; transition: width .3s var(--ease), opacity .3s; }
+  .rail a.on .n::after { width: 22px; opacity: 1; }
+  .rail .t { position: absolute; left: 100%; margin-left: 2px; padding: 5px 10px; border-radius: 999px; border: 1px solid var(--hair-2); background: color-mix(in oklab, var(--surface-2) 94%, transparent); backdrop-filter: blur(8px); text-transform: uppercase; white-space: nowrap; opacity: 0; transform: translateX(-6px); pointer-events: none; transition: opacity .2s, transform .25s var(--ease); }
+  .rail a:hover .t, .rail a:focus-visible .t, .rail a.on .t { opacity: 1; transform: none; }
+}
+
+/* ---------- site switcher and page filter ---------- */
+.sitebtn { display: inline-flex; align-items: center; gap: 4px; margin: -2px 0; padding: 2px 8px 2px 6px; border: 1px solid var(--hair); border-radius: 8px; background: transparent; color: var(--text-2); font: inherit; }
+.sitebtn:hover { color: var(--accent); border-color: var(--hair-2); }
+.sitebtn:focus-visible { outline-offset: -2px; }
+.pop.sitepop { left: 20px; right: auto; top: 64px; padding: 12px; width: min(300px, calc(100vw - 28px)); }
+.pop-h { margin: 2px 4px 8px; font: 500 .68rem var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--text-3); }
+.sitepop ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.sitepop li button { display: flex; width: 100%; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--hair); border-radius: 12px; background: none; color: var(--text); font: 500 .86rem var(--font); text-align: left; }
+.sitepop li button:hover, .sitepop li button.on { border-color: var(--accent); background: color-mix(in oklab, var(--accent) 10%, transparent); }
+.sitepop li button.on { color: var(--accent); }
+.filterbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: var(--gap); padding: 10px 14px; border-radius: 14px; border: 1px solid color-mix(in oklab, var(--accent) 40%, transparent); background: color-mix(in oklab, var(--accent) 10%, var(--surface)); font-size: .86rem; min-width: 0; }
+.filterbar b { overflow-wrap: anywhere; }
+.filterbar button { border: 1px solid var(--hair-2); background: var(--surface); border-radius: 10px; padding: 6px 12px; color: var(--text); font: 600 .78rem var(--font); }
+.filterbar button:hover { color: var(--accent); border-color: var(--accent); }
+.only { margin: 2px 8px 10px; padding: 6px 12px; border: 1px dashed var(--hair-2); border-radius: 10px; background: none; color: var(--text-2); font: 600 .76rem var(--font); }
+.only:hover { color: var(--accent); border-color: var(--accent); }
+.toast { max-width: min(92vw, 560px); text-align: center; }
 
 /* ---------- refresh ---------- */
 .iconbtn.spin svg { animation: gc-spin .9s linear infinite; }

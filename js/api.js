@@ -92,3 +92,36 @@ export class API {
 export const ttlFor = (range) => (range.live ? 60_000 : 6 * 3600_000);
 
 export const q = (o) => Object.entries(o).filter(([, v]) => v !== undefined && v !== null && v !== '').map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&');
+
+// A view of the same client narrowed to some pages (GoatCounter path ids). It shares the queue, the rate-limit state
+// and the cache with the original; only the statistics requests gain `include_paths`, so every card narrows at once.
+export function narrow(api, ids) {
+  const list = ids.join(',');
+  const view = Object.create(api);
+  view.filter = ids;
+  view.get = (endpoint, opts) => {
+    const plain = !/\/stats\//.test(endpoint) || /\/stats\/hits\/\d/.test(endpoint) || /include_paths=/.test(endpoint);
+    return api.get(plain ? endpoint : endpoint + (endpoint.includes('?') ? '&' : '?') + 'include_paths=' + list, opts);
+  };
+  return view;
+}
+
+// The sites this key can read, as { id, name, url }. Listing them takes the "Read sites" permission; without it the
+// key still reads the one site it was made on, so that one is returned alone.
+export async function listSites(api) {
+  const here = new URL(api.baseURL);
+  const self = { id: 0, name: here.host, url: api.baseURL };
+  try {
+    const r = await api.get('/api/v0/sites', { ttl: 6 * 3600_000 });
+    const rows = (Array.isArray(r) ? r : (r && r.sites) || []).filter((x) => x && (x.cname || x.code));
+    const seen = new Set(), out = [];
+    for (const x of rows) {
+      // a custom domain, else the code's subdomain on goatcounter.com, else the host the user typed
+      const host = x.cname || (here.host.endsWith('goatcounter.com') ? x.code + '.goatcounter.com' : here.host);
+      const url = here.protocol + '//' + host;
+      if (!seen.has(url)) { seen.add(url); out.push({ id: x.id, name: x.cname || x.code, url }); }
+    }
+    if (!out.some((x) => x.url === api.baseURL)) out.unshift(self);
+    return out;
+  } catch { return [self]; }
+}

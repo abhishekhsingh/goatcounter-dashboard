@@ -51,7 +51,7 @@ export function RankCard({ api, title, sub, endpoint, ttl, pick = (d) => d.stats
   </section>`;
 }
 
-export function TopPages({ api, range, hits, now }) {
+export function TopPages({ api, range, hits, now, filtered, onFilter }) {
   const [open, setOpen] = useState(null);
   const [all, setAll] = useState(false);
   const { data, error, loading, retry } = hits;
@@ -75,6 +75,7 @@ export function TopPages({ api, range, hits, now }) {
             </div>
           </button>
           ${isOpen ? html`<${SubRows} api=${api} endpoint=${'/api/v0/stats/hits/' + r.path_id + '?' + q({ start: range.start, end: range.end, limit: 10 })} ttl=${ttlFor(range)} total=${r.count} />` : null}
+          ${isOpen && !filtered && onFilter ? html`<button type="button" class="only" onClick=${() => onFilter({ id: r.path_id, path: r.path })}>Show only this page</button>` : null}
         </li>`;
       })}</ul>
       ${rows.length > 8 ? html`<button class="more" type="button" onClick=${() => setAll(!all)}>${all ? 'Show less' : `Show all ${rows.length}`}</button>` : null}`}

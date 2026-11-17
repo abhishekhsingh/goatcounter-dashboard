@@ -30,7 +30,7 @@ export function ConnectScreen({ onConnect, onDemo, initialError }) {
       </form>
       <details class="help"><summary>How do I get an API key?</summary><ol>
         <li>Log in to your GoatCounter site.</li><li>Click your username in the top menu, then <b>API</b>.</li>
-        <li>Add a token with only <b>Read statistics</b> ticked.</li><li>Copy the key and paste it above.</li></ol></details>
+        <li>Add a token with <b>Read statistics</b> ticked. Also tick <b>Read sites</b> if you want to switch between your sites.</li><li>Copy the key and paste it above.</li></ol></details>
     </div>
     <p class="foot">Open source. No tracking. No server.</p>
   </main>`;
