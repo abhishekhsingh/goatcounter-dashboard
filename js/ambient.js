@@ -31,9 +31,9 @@ void main(){
   float f = fbm(p + 1.5 * q + vec2(uPhase * .6, -uPhase * .5));
   float day = .5 + .5 * sin(6.2831 * (uHour - 9.) / 24.);
   float body = smoothstep(.22, .9, f);
-  vec3 col = mix(uBg, uA, body * .6);
-  col = mix(col, uB, smoothstep(.4, .95, q.x) * .4 * (.5 + .5 * day));
-  col = mix(col, uC, smoothstep(.5, 1., q.y) * .25 * (.5 + .5 * (1. - day)));
+  vec3 col = mix(uBg, uA, body * .8);
+  col = mix(col, uB, smoothstep(.4, .95, q.x) * .55 * (.5 + .5 * day));
+  col = mix(col, uC, smoothstep(.5, 1., q.y) * .38 * (.5 + .5 * (1. - day)));
   col = mix(uBg, col, uK * (.9 + .2 * uEnergy));
   col += (hash(gl_FragCoord.xy) - .5) * mix(.012, .008, uLight); // fixed grain, so nothing shimmers
   gl_FragColor = vec4(col, 1.);
@@ -42,7 +42,7 @@ void main(){
 const html = document.documentElement;
 const isNova = () => html.getAttribute('data-look') === 'nova' && html.getAttribute('data-bg') !== 'off';
 const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
-const weak = () => {
+export const weak = () => {
   const n = navigator, c = n.connection;
   return (c && c.saveData) || (n.hardwareConcurrency && n.hardwareConcurrency <= 2) || (n.deviceMemory && n.deviceMemory <= 2);
 };
@@ -107,7 +107,7 @@ class Ambient {
   }
   colors() {
     const light = html.getAttribute('data-theme') === 'light';
-    this.pal = { bg: hexToRgb(cssVar('--bg')), a: hexToRgb(cssVar('--accent')), b: hexToRgb(cssVar('--accent-2')), c: hexToRgb(cssVar('--hot')), light, k: light ? 0.72 : 0.78 };
+    this.pal = { bg: hexToRgb(cssVar('--bg')), a: hexToRgb(cssVar('--accent')), b: hexToRgb(cssVar('--accent-2')), c: hexToRgb(cssVar('--hot')), light, k: light ? 0.66 : 0.72 };
     this.statics(); this.hourAt = 0;
   }
   statics() { // uniforms that only change with the size or the palette
@@ -120,7 +120,7 @@ class Ambient {
     const still = reduced() || this.mode === 'still';
     // Time is a running total that only grows while frames are drawn, so a pause (a scroll, a hidden tab) never makes the picture jump,
     // and a change of energy only changes the speed from now on, not where the pattern is.
-    this.phase += still ? 0 : Math.min(0.1, dt / 1000) * (0.006 + 0.004 * this.shown);
+    this.phase += still ? 0 : Math.min(0.1, dt / 1000) * (0.009 + 0.005 * this.shown);
     this.shown += (this.energy - this.shown) * 0.04;
     this.mouse[0] += (this.mouseTo[0] - this.mouse[0]) * 0.04; this.mouse[1] += (this.mouseTo[1] - this.mouse[1]) * 0.04;
     if (now - (this.hourAt || -1e9) > 30000) { const d = new Date(); this.hour = d.getHours() + d.getMinutes() / 60; this.hourAt = now; gl.uniform1f(u.uHour, this.hour); }

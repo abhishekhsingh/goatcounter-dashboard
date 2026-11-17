@@ -1,4 +1,5 @@
 import { html, useState, useEffect } from '../ui.js';
+import { Credit } from './common.js';
 
 export function ConnectScreen({ onConnect, onDemo, initialError }) {
   const [url, setUrl] = useState('');
@@ -32,6 +33,6 @@ export function ConnectScreen({ onConnect, onDemo, initialError }) {
         <li>Log in to your GoatCounter site.</li><li>Click your username in the top menu, then <b>API</b>.</li>
         <li>Add a token with <b>Read statistics</b> ticked. Also tick <b>Read sites</b> if you want to switch between your sites.</li><li>Copy the key and paste it above.</li></ol></details>
     </div>
-    <p class="foot">Open source. No tracking. No server.</p>
+    <footer class="foot"><p>Open source. No tracking. No server.</p><${Credit} /></footer>
   </main>`;
 }

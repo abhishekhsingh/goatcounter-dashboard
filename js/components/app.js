@@ -1,6 +1,6 @@
 import { html, useState, useEffect, useMemo, useRef, useContext, Fragment } from '../ui.js';
 import { API, q, ttlFor, narrow, listSites } from '../api.js';
-import { Ctx, useApi, useTicker, Skeleton, Delta } from './common.js';
+import { Ctx, useApi, useTicker, Skeleton, Delta, Credit } from './common.js';
 import { HeroChart } from './hero.js';
 import { RankCard, TopPages, StatStrip, CountriesCard, schemeLabel } from './cards.js';
 import { ConnectScreen } from './connect.js';
@@ -269,8 +269,11 @@ function Dashboard({ api: baseApi, demo, sites = [], onSite, switching, theme, l
         <button type="button" class="iconbtn" aria-label="Open the command palette (shortcut: /)" title="Commands (/)" onClick=${() => setPalette(true)}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></button>
         <button type="button" class="iconbtn" aria-label="Share a recap image" title="Share a recap (r)" onClick=${() => setRecap(true)}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M8 7l4-4 4 4M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></svg></button>
         <button type="button" class="iconbtn" aria-label="Appearance" title="Appearance" popovertarget="appearance"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="13.5" cy="6.5" r=".6" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".6" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".6" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".6" fill="currentColor"/><path d="M12 2a10 10 0 1 0 0 20 2 2 0 0 0 2-2c0-.5-.2-1-.5-1.3-.3-.4-.5-.8-.5-1.3a2 2 0 0 1 2-2H17a5 5 0 0 0 5-5c0-4.4-4.5-8-10-8z"/></svg></button>
-        <button type="button" class="iconbtn" aria-label=${theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'} onClick=${(e) => { const r = e.currentTarget.getBoundingClientRect(); onTheme({ x: r.left + r.width / 2, y: r.top + r.height / 2 }); }}>
-          ${theme === 'dark' ? html`<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>` : html`<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>`}</button>
+        <button type="button" class="modesw" role="switch" aria-checked=${String(theme === 'dark')} aria-label="Dark mode" title=${theme === 'dark' ? 'Switch to light mode (L)' : 'Switch to dark mode (L)'} onClick=${(e) => { const r = e.currentTarget.querySelector('.knob').getBoundingClientRect(); onTheme({ x: r.left + r.width / 2, y: r.top + r.height / 2 }); }}>
+          <span class="msun" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></span>
+          <span class="mmoon" aria-hidden="true"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></span>
+          <i class="knob" aria-hidden="true"></i>
+        </button>
         ${demo ? null : html`<button type="button" class=${'iconbtn' + (busy ? ' spin' : '')} aria-label="Refresh data" title="Refresh data (Shift+R)" aria-busy=${String(!!busy)} onClick=${refresh}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 0 1-15.5 6.2L3 16M3 12a9 9 0 0 1 15.5-6.2L21 8M21 3v5h-5M3 21v-5h5"/></svg></button>`}
         ${demo ? null : html`<button type="button" class="iconbtn" aria-label="Disconnect" title="Disconnect" onClick=${onDisconnect}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg></button>`}
       </div>
@@ -322,6 +325,6 @@ function Dashboard({ api: baseApi, demo, sites = [], onSite, switching, theme, l
     <${Palette} open=${palette} onClose=${() => setPalette(false)} commands=${commands} />
     <${RecapDialog} open=${recap} onClose=${() => setRecap(false)} api=${api} range=${range} info=${recapInfo} look=${look} />
     <div class=${'toast' + (toast ? ' on' : '')} role="status" aria-live="polite">${toast}</div>
-    <footer class="foot"><p>Counts are visitors, as GoatCounter reports them. Days and hours use the site's time zone.<br/>Browser and system logos are trademarks of their owners, shown to identify the software only.</p></footer>
+    <footer class="foot"><p>Counts are visitors, as GoatCounter reports them. Days and hours use the site's time zone.<br/>Browser and system logos are trademarks of their owners, shown to identify the software only.</p><${Credit} /></footer>
   </div><//>`;
 }

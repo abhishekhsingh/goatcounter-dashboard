@@ -9,8 +9,9 @@ An open-source dashboard for [GoatCounter](https://www.goatcounter.com/) analyti
 ## ✨ Features
 
 **Two designs, one engine**
-- **Nova** (default): a quiet, slowly drifting background (a soft shader that leans a little with your traffic and your cursor, and can be set to **Still** or **Off** in Appearance), glass cards that light up under the pointer, a glowing gradient line, tilting stat cards, and a WebGL globe with flowing arcs and pulses.
+- **Nova** (default): a quiet, slowly drifting background (a soft shader that leans a little with your traffic and your cursor, and can be set to **Still** or **Off** in Appearance), glass cards that light up under the pointer, a glowing gradient line, tilting stat cards, a WebGL globe with flowing arcs and pulses, and, in dark mode on wide screens, a quiet starfield in the side margins with shooting stars that streak down the margins, dive in behind the cards, or cross the whole page.
 - **Classic**: the original flat, calm look, with the same data and the same features.
+- Dark and light mode is a small sun and moon switch in the top right (or press `L`): the knob rests on the sun for light and on the moon for dark, with a deep night track and a glow in Nova and a flat teal knob in Classic.
 - Both come in dark and light. A new visit always opens in **Nova dark**. Your choice lasts for the tab, and you can tick **Remember my choice** to keep it for next time.
 
 **Views**
@@ -35,7 +36,7 @@ An open-source dashboard for [GoatCounter](https://www.goatcounter.com/) analyti
 - **Recap image**: a shareable 1080 x 1350 card made in your browser. Counts under 5 are left out so small numbers stay private.
 - **Honest numbers**: GoatCounter counts visitors, so that is what is shown. Days and hours follow your site's time zone. A comparison is hidden when the earlier period has too little data.
 - **Accessible**: keyboard operable, screen-reader labels, reduced motion respected, axe clean in both designs and both modes.
-- **Private**: no analytics, no third-party requests (fonts and libraries are self-hosted), and your key is only ever sent to your own GoatCounter site.
+- **Private**: no analytics, no third-party requests (fonts and libraries are self-hosted), and your key is only ever sent to your own GoatCounter site. The credit line at the bottom ("Built with a heart by Abhishekh Singh", with a link to the portfolio and one to the source code) opens in a new tab and sends no referrer.
 
 ## 🖼️ Screenshots
 

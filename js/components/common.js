@@ -54,4 +54,6 @@ export function Sparkline({ values, w = 96, h = 26, label }) {
     <circle cx=${last[0]} cy=${last[1]} r="2.4" fill="currentColor"/></svg>`;
 }
 
+// The credit line under both footers. The links open in a new tab and send no referrer, in keeping with a dashboard that says it does not track.
+export const Credit = () => html`<p class="credit">Built with <span class="heart" role="img" aria-label="love">❤️</span> by <a href="https://abhishekhsingh.github.io/" target="_blank" rel="noopener noreferrer">Abhishekh Singh</a><span class="sep" aria-hidden="true">·</span><a href="https://github.com/abhishekhsingh/goatcounter-dashboard" target="_blank" rel="noopener noreferrer">Source code</a></p>`;
 export const Delta = ({ pct }) => (pct === null || !Number.isFinite(pct) ? null : html`<span class=${'delta ' + (pct >= 0 ? 'up' : 'down')}>${pct >= 0 ? '▲' : '▼'} ${Math.abs(pct).toFixed(Math.abs(pct) < 10 ? 1 : 0)}%</span>`);
