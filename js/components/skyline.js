@@ -2,6 +2,7 @@ import { html, useState, useEffect, useRef, useMemo, useInView, useContext } fro
 import { Ctx, useApi, Skeleton, ErrorBox } from './common.js';
 import { q } from '../api.js';
 import { makeRange, hourLabel, fmtFull } from '../util.js';
+const fmtAvg = (v) => (v >= 10 ? fmtFull(v) : String(Math.round(v * 10) / 10)); // light sites have fractions of a visitor per hour
 import { hourWeekday } from '../model.js';
 import { hexToRgb, cssVar } from '../fx.js';
 
@@ -33,7 +34,7 @@ function Skyline({ m, n, themeKey, onNote }) {
         ctx.strokeStyle = rgba(hi, 1, 0.1); ctx.beginPath(); ctx.moveTo(rx, ry + 3); ctx.lineTo(rx + cols * cw, ry + 3); ctx.stroke();
         for (let c = 0; c < cols; c++) {
           const avg = m[r][c] / Math.max(1, n[r]), v = avg / mx, k = 1 - Math.pow(1 - Math.min(1, Math.max(0, (t - (c * 0.02 + (rows - r) * 0.04)) / 0.7)), 3), h = Math.max(2, v * maxH * k);
-          const x = rx + c * cw + (cw - bw) / 2, y = ry, base = mix(lo, hi, Math.pow(v, 0.8)), isH = S.hover && S.hover[0] === r && S.hover[1] === c, lit = isH ? 1.4 : 1;
+          const x = rx + c * cw + (cw - bw) / 2, y = ry, base = mix(lo, hi, Math.pow(v, 0.8)), isH = S.hover && S.hover[0] === r && S.hover[1] === c, lit = (isH ? 1.4 : 1) * (v > 0 ? 1 : 0.3); // empty hours stay quiet
           ctx.fillStyle = rgba(base, 0.42 * lit); ctx.beginPath(); ctx.moveTo(x + bw, y); ctx.lineTo(x + bw + dX, y - dY); ctx.lineTo(x + bw + dX, y - dY - h); ctx.lineTo(x + bw, y - h); ctx.closePath(); ctx.fill();
           const g = ctx.createLinearGradient(x, y - h, x, y); g.addColorStop(0, rgba(base, 1.05 * lit)); g.addColorStop(1, rgba(base, 0.55 * lit)); ctx.fillStyle = g; ctx.fillRect(x, y - h, bw, h);
           ctx.fillStyle = rgba(mix(base, top, 0.4 * v), 1.2 * lit); ctx.beginPath(); ctx.moveTo(x, y - h); ctx.lineTo(x + dX, y - h - dY); ctx.lineTo(x + bw + dX, y - h - dY); ctx.lineTo(x + bw, y - h); ctx.closePath(); ctx.fill();
@@ -54,7 +55,7 @@ function Skyline({ m, n, themeKey, onNote }) {
   const point = (e) => {
     const S = state.current, r = cv.current.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
     let hit = null; for (const b of [...S.boxes].reverse()) if (inPoly(b.poly, x, y)) { hit = b; break; }
-    S.hover = hit ? [hit.r, hit.c] : null; onNote(hit ? `${DAYS[hit.r]} at ${hourLabel(hit.c)}: ${fmtFull(hit.avg)} visitors on average` : ''); S.kick && S.kick();
+    S.hover = hit ? [hit.r, hit.c] : null; onNote(hit ? `${DAYS[hit.r]} at ${hourLabel(hit.c)}: ${fmtAvg(hit.avg)} visitors on average` : ''); S.kick && S.kick();
   };
   return html`<canvas ref=${cv} class="sky" role="img" aria-label="3D skyline of visitors by weekday and hour" onPointerMove=${point} onPointerLeave=${() => { state.current.hover = null; onNote(''); state.current.kick && state.current.kick(); }}></canvas>`;
 }
@@ -82,7 +83,7 @@ function HourClock({ m, onNote }) {
   return html`<div class="clock-wrap">
     <svg class="clock" viewBox="0 0 260 260" role="img" aria-label=${`24 hour clock of visitors. Busiest around ${hourLabel(peak)}.`}>
       <circle cx=${cx} cy=${cy} r=${R0 - 4} fill="none" stroke="var(--hair)"/><circle cx=${cx} cy=${cy} r=${R1} fill="none" stroke="var(--hair)" stroke-dasharray="2 5"/>
-      ${hourly.map((v, h) => html`<path key=${h} class="wedge" d=${wedge(h, R0 + Math.max(3, (v / mx) * (R1 - R0)))} style=${{ fill: h === peak ? 'var(--hot)' : 'var(--accent)', opacity: hot === null ? 0.3 + 0.7 * (v / mx) : hot === h ? 1 : 0.25, animationDelay: h * 22 + 'ms' }} onPointerEnter=${() => { setHot(h); onNote(`${hourLabel(h)}: ${fmtFull(v)} visitors an hour on a typical day`); }} onPointerLeave=${() => { setHot(null); onNote(''); }}/>`)}
+      ${hourly.map((v, h) => html`<path key=${h} class="wedge" d=${wedge(h, R0 + Math.max(3, (v / mx) * (R1 - R0)))} style=${{ fill: h === peak ? 'var(--hot)' : 'var(--accent)', opacity: hot === null ? 0.3 + 0.7 * (v / mx) : hot === h ? 1 : 0.25, animationDelay: h * 22 + 'ms' }} onPointerEnter=${() => { setHot(h); onNote(`${hourLabel(h)}: ${fmtAvg(v)} visitors an hour on a typical day`); }} onPointerLeave=${() => { setHot(null); onNote(''); }}/>`)}
       ${[0, 6, 12, 18].map((h) => { const [x, y] = pt(R1 + 15, h * 15); return html`<text key=${h} x=${x} y=${y + 3} text-anchor="middle" class="cal-t">${label(h)[0]}</text>`; })}
       <text x=${cx} y=${cy - 2} text-anchor="middle" class="clock-big">${hourLabel(hot === null ? peak : hot)}</text>
       <text x=${cx} y=${cy + 14} text-anchor="middle" class="cal-t">${hot === null ? 'busiest hour' : 'typical hour'}</text>
@@ -96,9 +97,9 @@ export function TimePatterns({ api, tz, look, theme, now }) {
   const range = useMemo(() => makeRange('90d', tz, null, now), [tz, now]);
   const { data, error, retry } = useApi(api, `/api/v0/stats/total?${q({ start: range.start, end: range.end })}`, { ttl: 6 * 3600_000, enabled: seen });
   const hw = useMemo(() => (data ? hourWeekday(data) : null), [data]);
-  const enough = hw && hw.m.flat().reduce((a, b) => a + b, 0) >= 60;
+  const enough = hw && hw.enough;
   return html`<section class="card span-12" ref=${ref} aria-label="When readers show up">
-    <div class="card-h"><div><h2>When your readers show up</h2><p class="sub">Typical visitors by weekday and hour over the last 90 days, in the site's time zone</p></div></div>
+    <div class="card-h"><div><h2>When your readers show up</h2><p class="sub">${hw && hw.sparse ? 'Average' : 'Typical'} visitors by weekday and hour over the last 90 days, in the site's time zone${hw && hw.sparse ? '. Traffic is still light, so read this as a rough guide.' : ''}</p></div></div>
     ${error ? html`<${ErrorBox} error=${error} retry=${retry} />` : !data ? html`<${Skeleton} h=${240} r="12px" />` : !enough ? html`<div class="empty">Not enough traffic yet to show a pattern.</div>` : html`
       <div class="pat">
         <div class="pat-main">${look === 'nova' ? html`<${Skyline} m=${hw.m} n=${hw.n} themeKey=${look + theme} onNote=${setNote} />` : html`<${HeatGrid} m=${hw.m} n=${hw.n} onNote=${setNote} />`}</div>
