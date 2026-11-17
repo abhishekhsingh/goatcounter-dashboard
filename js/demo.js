@@ -81,8 +81,11 @@ function shares(list, weightIdx, total) {
   return floor;
 }
 
-export function createDemo({ seed = 20261116, days = 760, tz = browserTZ() } = {}) {
+export function createDemo({ seed = 20261116, days = 760, tz = browserTZ(), pages = PAGES, rate = 560, host = '_demo_' } = {}) {
+  const PAGES = pages;
   const r = mulberry32(seed);
+  let sel = null; // page indices a request is narrowed to (include_paths), null for all pages
+  const hasViral = PAGES.some((x) => x.kind === 'viral'), k = rate / 560;
   const now = new Date();
   const today = ymdOf(now, tz);
   const nowHour = zoned(now, tz).hour;
@@ -113,7 +116,7 @@ export function createDemo({ seed = 20261116, days = 760, tz = browserTZ() } = {
     const season = 1 + 0.1 * Math.sin((2 * Math.PI * (doy - 80)) / 365) - (doy > 352 || doy < 4 ? 0.3 : 0);
     const growth = 0.55 + 0.5 * Math.pow(d / days, 1.15);
     const lull = d === days - 118 || d === days - 117 ? 0.3 : 1;
-    const dayRate = 560 * growth * dow[wd] * season * lull * Math.exp(0.14 * gauss(r));
+    const dayRate = rate * growth * dow[wd] * season * lull * Math.exp(0.14 * gauss(r));
     let dayTotal = 0;
     PAGES.forEach((p, i) => {
       let pc = 1;
@@ -133,16 +136,16 @@ export function createDemo({ seed = 20261116, days = 760, tz = browserTZ() } = {
     });
     REFERRERS.forEach((ref, j) => {
       let v = dayTotal * 0.87 * ref.share * (0.8 + 0.4 * r());
-      if (ref.name === 'news.ycombinator.com') { const k = d - viralDay; if (k >= 0) v += 2000 * Math.exp(-k / 0.9); }
-      if (ref.name === 'reddit.com' && d === days - 60) v += 420;
-      if (ref.name === 'newsletter' && PULSES.includes(d)) v += 260;
-      if (ref.name === 'linkedin.com' && d === days - 30) v += 300;
+      if (hasViral && ref.name === 'news.ycombinator.com') { const dk = d - viralDay; if (dk >= 0) v += 2000 * Math.exp(-dk / 0.9); }
+      if (ref.name === 'reddit.com' && d === days - 60) v += 420 * k;
+      if (ref.name === 'newsletter' && PULSES.includes(d)) v += 260 * k;
+      if (ref.name === 'linkedin.com' && d === days - 30) v += 300 * k;
       dailyRefs[j][d] = v;
     });
   }
 
   // ---- derived views ----
-  const siteHourly = (d, h) => { let s = 0; for (let i = 0; i < PAGES.length; i++) s += H[i][d * 24 + h]; return Math.round(s * 0.87); };
+  const siteHourly = (d, h) => { let s = 0; for (let i = 0; i < PAGES.length; i++) if (!sel || sel.has(i)) s += H[i][d * 24 + h]; return Math.round(s * 0.87); };
   const dayIdx = (ymd) => diffDays(ymd, first);
   const windowOf = (start, end) => {
     const a = Math.max(0, dayIdx(ymdOf(new Date(start), tz))), b = Math.min(N - 1, dayIdx(ymdOf(new Date(end), tz)));
@@ -152,7 +155,9 @@ export function createDemo({ seed = 20261116, days = 760, tz = browserTZ() } = {
   const totalIn = (a, b) => { let s = 0; for (let d = a; d <= b; d++) for (let h = 0; h < 24; h++) s += siteHourly(d, h); return s; };
   const statsFor = (i, a, b) => { const out = []; for (let d = a; d <= b; d++) { const hourly = []; let daily = 0; for (let h = 0; h < 24; h++) { const v = H[i][d * 24 + h]; hourly.push(v); daily += v; } out.push({ day: dayOf(d), daily, hourly }); } return out; };
   const refCounts = (a, b, pageIdx) => {
-    const base = REFERRERS.map((ref, j) => { let s = 0; for (let d = a; d <= b; d++) s += dailyRefs[j][d]; return pageIdx == null ? s : s * (tilt[pageIdx][j] / 1.0) * (PAGES[pageIdx].w / wsum) * 1.0; });
+    let narrow = 1; // narrowed to some pages: the referrers shrink with them
+    if (sel && pageIdx == null) { let part = 0, all = 0; PAGES.forEach((x, i) => { const c = pageCount(i, a, b); all += c; if (sel.has(i)) part += c; }); narrow = all ? part / all : 0; }
+    const base = REFERRERS.map((ref, j) => { let s = 0; for (let d = a; d <= b; d++) s += dailyRefs[j][d]; return pageIdx == null ? s * narrow : s * (tilt[pageIdx][j] / 1.0) * (PAGES[pageIdx].w / wsum) * 1.0; });
     const want = pageIdx == null ? null : pageCount(pageIdx, a, b);
     const sum = base.reduce((x, y) => x + y, 0) || 1;
     return base.map((v, j) => ({ ...REFERRERS[j], count: Math.round(v * (want == null ? 1 : want / sum)) })).filter((x) => x.count > 0).sort((x, y) => y.count - x.count);
@@ -163,11 +168,12 @@ export function createDemo({ seed = 20261116, days = 760, tz = browserTZ() } = {
   function respond(endpoint) {
     const [path, qs] = endpoint.split('?');
     const p = Object.fromEntries(new URLSearchParams(qs || ''));
+    sel = p.include_paths ? new Set(p.include_paths.split(',').map((x) => +x - 1001)) : null;
     const parts = path.replace('/api/v0', '').split('/').filter(Boolean);
     const [a, b] = p.start ? windowOf(p.start, p.end || now.toISOString()) : [N - 7, N - 1];
     const total = totalIn(a, b);
     if (parts[0] === 'me') return { token: { name: 'demo', permissions: { stats: true }, sites: [] }, user: { id: 1, site: 1, email: 'demo@example.com', settings: { timezone: tz } } };
-    if (parts[0] === 'sites') return { first_hit_at: dayOf(0) + 'T00:00:00Z', created_at: dayOf(0) + 'T00:00:00Z', code: 'demo' };
+    if (parts[0] === 'sites') return { sites: DEMO_SITES.map((x, i) => ({ id: i + 1, code: x.code, cname: x.name })), more: false };
     if (parts[0] !== 'stats') return {};
     const kind = parts[1], id = parts[2];
     if (kind === 'total') {
@@ -177,11 +183,12 @@ export function createDemo({ seed = 20261116, days = 760, tz = browserTZ() } = {
     }
     if (kind === 'hits' && id) { const i = PAGES.findIndex((x, k) => String(1001 + k) === id); return { refs: lim(refCounts(a, b, Math.max(0, i)).map((x) => ({ id: x.name || 'direct', name: x.name, count: x.count, ref_scheme: x.scheme })), p), more: false }; }
     if (kind === 'hits') {
-      const rows = PAGES.map((pg, i) => ({ i, c: pageCount(i, a, b) })).filter((x) => x.c > 0).sort((x, y) => y.c - x.c);
-      const hits = lim(rows, p).map(({ i, c }) => ({ path_id: 1001 + i, path: PAGES[i].path, title: PAGES[i].title, event: false, count: c, max: Math.max(10, ...statsFor(i, a, b).map((s) => s.daily)), stats: statsFor(i, a, b) }));
+      const rows = PAGES.map((pg, i) => ({ i, c: pageCount(i, a, b) })).filter((x) => x.c > 0 && (!sel || sel.has(x.i))).sort((x, y) => y.c - x.c);
+      const sc = (v) => Math.round(v * 0.87); // pages add up to the site total, as in the other answers
+      const hits = lim(rows, p).map(({ i, c }) => { const stats = statsFor(i, a, b).map((x) => ({ ...x, daily: sc(x.daily), hourly: x.hourly.map(sc) })); return { path_id: 1001 + i, path: PAGES[i].path, title: PAGES[i].title, event: false, count: sc(c), max: Math.max(10, ...stats.map((x) => x.daily)), stats }; });
       return { hits, total, more: rows.length > hits.length };
     }
-    if (kind === 'toprefs' && id) { const k = REFERRERS.findIndex((x) => (x.name || 'direct') === decodeURIComponent(id)); const rc = refCounts(a, b, null)[0]; void rc; const tot = k < 0 ? 0 : Math.round(dailyRefs[k].slice(a, b + 1).reduce((x, y) => x + y, 0)); const rows = PAGES.map((pg, i) => [pg.path, pg.w * tilt[i][Math.max(0, k)]]); return { stats: listFrom(rows, 0, 0, 1, tot).slice(0, 10).map((x) => ({ ...x, id: x.name })), more: false }; }
+    if (kind === 'toprefs' && id) { const k = REFERRERS.findIndex((x) => (x.name || 'direct') === decodeURIComponent(id)); const rc = refCounts(a, b, null)[0]; void rc; const tot = k < 0 ? 0 : Math.round(dailyRefs[k].slice(a, b + 1).reduce((x, y) => x + y, 0)); const wt = PAGES.map((pg, i) => pg.w * tilt[i][Math.max(0, k)]); const frac = sel ? [...sel].reduce((x, i) => x + (wt[i] || 0), 0) / wt.reduce((x, y) => x + y, 0) : 1; const rows = PAGES.map((pg, i) => [pg.path, wt[i]]).filter((x, i) => !sel || sel.has(i)); return { stats: listFrom(rows, 0, 0, 1, Math.round(tot * frac)).slice(0, 10).map((x) => ({ ...x, id: x.name })), more: false }; }
     if (kind === 'toprefs') return { stats: lim(refCounts(a, b, null).map((x) => ({ id: x.name || 'direct', name: x.name, count: x.count, ref_scheme: x.scheme })), p), more: false };
     if (kind === 'browsers') return id ? { stats: listFrom((BROWSERS.find((x) => x[0] === decodeURIComponent(id)) || BROWSERS[0])[2].map((v, i) => [v, v, 10 - i * 2]), 0, 1, 2, Math.round(total * 0.4)), more: false } : { stats: listFrom(BROWSERS, 0, 0, 1, total), more: false };
     if (kind === 'systems') return id ? { stats: listFrom((SYSTEMS.find((x) => x[0] === decodeURIComponent(id)) || SYSTEMS[0])[2].map((v, i) => [v, v, 10 - i * 2]), 0, 1, 2, Math.round(total * 0.3)), more: false } : { stats: listFrom(SYSTEMS, 0, 0, 1, total), more: false };
@@ -195,9 +202,49 @@ export function createDemo({ seed = 20261116, days = 760, tz = browserTZ() } = {
   }
 
   return {
-    demo: true, tz, baseURL: '_demo_', today, firstDay: dayOf(0),
+    demo: true, tz, baseURL: host, today, firstDay: dayOf(0),
     async get(endpoint, opts = {}) { await new Promise((res) => setTimeout(res, 40 + Math.random() * 90)); return respond(endpoint); },
     clearCache() { return Promise.resolve(); },
     _respond: respond,
   };
+}
+
+// ---- three imaginary sites, so the site switcher has something to switch between ----
+const PAGES_TRAIL = [
+  { path: '/', title: 'Home', w: 14, kind: 'evergreen' },
+  { path: '/trails/ridge-loop', title: 'Ridge Loop in a Day', w: 12, kind: 'evergreen' },
+  { path: '/trails/lakeside-day-hike', title: 'The Lakeside Day Hike', w: 10, kind: 'rising' },
+  { path: '/gear/boots-after-500km', title: 'Boots After 500 km', w: 8, kind: 'evergreen' },
+  { path: '/trails/winter-bivouac', title: 'A Winter Bivouac', w: 6, kind: 'declining' },
+  { path: '/trails/glacier-traverse', title: 'The Glacier Traverse', w: 6, kind: 'launch' },
+  { path: '/guides/leave-no-trace', title: 'Leave No Trace, Plainly', w: 5, kind: 'evergreen' },
+  { path: '/maps', title: 'Maps', w: 5, kind: 'evergreen' },
+  { path: '/gear/stove-tests', title: 'Stove Tests', w: 4, kind: 'rising' },
+  { path: '/about', title: 'About', w: 3, kind: 'evergreen' },
+];
+const PAGES_PIXEL = [
+  { path: '/', title: 'Home', w: 16, kind: 'evergreen' },
+  { path: '/gallery', title: 'Gallery', w: 12, kind: 'evergreen' },
+  { path: '/tutorials/palette-basics', title: 'Palette Basics', w: 10, kind: 'rising' },
+  { path: '/tutorials/dithering', title: 'Dithering by Hand', w: 8, kind: 'evergreen' },
+  { path: '/gallery/spring-sprites', title: 'Spring Sprites', w: 7, kind: 'declining' },
+  { path: '/shop', title: 'Shop', w: 5, kind: 'evergreen' },
+  { path: '/blog/pixel-notes', title: 'Pixel Notes', w: 4, kind: 'rising' },
+  { path: '/about', title: 'About', w: 3, kind: 'evergreen' },
+];
+const DEMO_SITES = [
+  { code: 'ridge-notes', name: 'ridge-notes.example', opts: {} },
+  { code: 'trailhead', name: 'trailhead.example', opts: { seed: 77, rate: 220, pages: PAGES_TRAIL } },
+  { code: 'pixel-garden', name: 'pixel-garden.example', opts: { seed: 4242, rate: 95, pages: PAGES_PIXEL } },
+];
+// Each site is built on first use (about 100 ms), then kept.
+export function createDemoSites() {
+  const pool = new Map();
+  const sites = DEMO_SITES.map((x, i) => ({ id: i + 1, name: x.name, url: '_demo_/' + x.code }));
+  const open = (url) => {
+    let api = pool.get(url);
+    if (!api) { const x = DEMO_SITES[sites.findIndex((s) => s.url === url)] || DEMO_SITES[0]; api = createDemo({ ...x.opts, host: url }); pool.set(url, api); }
+    return api;
+  };
+  return { sites, open };
 }

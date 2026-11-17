@@ -45,7 +45,8 @@ export function useShortcuts(map) {
       const t = e.target, typing = t && (/^(input|textarea|select)$/i.test(t.tagName) || t.isContentEditable);
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); map['mod+k'] && map['mod+k'](); return; }
       if (typing || e.ctrlKey || e.metaKey || e.altKey) return;
-      const fn = map[e.key.length === 1 ? e.key.toLowerCase() : e.key];
+      const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+      const fn = map[e.shiftKey && /^[a-z]$/.test(k) ? 'shift+' + k : k];
       if (fn) { e.preventDefault(); fn(); }
     };
     addEventListener('keydown', f);

@@ -8,15 +8,16 @@ export function useApi(api, endpoint, { ttl = 60_000, enabled = true } = {}) {
   const ctx = useContext(Ctx);
   const [s, setS] = useState({ data: null, error: null, loading: enabled, stale: false });
   const [n, setN] = useState(0);
+  const epoch = ctx.epoch || 0; // bumped by Refresh data: every mounted card fetches again and keeps its old answer on screen meanwhile
   useEffect(() => {
     if (!enabled || !endpoint) return;
     let dead = false;
     setS((p) => ({ ...p, loading: true, error: null }));
-    api.get(endpoint, { ttl, force: n > 0, onStale: (d) => { if (!dead) setS({ data: d, error: null, loading: true, stale: true }); } })
+    api.get(endpoint, { ttl, force: n > 0 || epoch > 0, onStale: (d) => { if (!dead) setS({ data: d, error: null, loading: true, stale: true }); } })
       .then((d) => { if (!dead) setS({ data: d, error: null, loading: false, stale: false }); })
       .catch((e) => { if (dead) return; if (e.kind === 'auth' && ctx.onAuthError) ctx.onAuthError(e); setS((p) => ({ ...p, error: e, loading: false })); });
     return () => { dead = true; };
-  }, [api, endpoint, enabled, n, ttl]);
+  }, [api, endpoint, enabled, n, ttl, epoch]);
   return { ...s, retry: () => setN((x) => x + 1) };
 }
 

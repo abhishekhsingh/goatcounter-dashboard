@@ -147,6 +147,10 @@ The map uses Natural Earth 110m shapes for fast loading, and the globe puts a ma
 
 The globe needs WebGL. If your browser has WebGL turned off, or the graphics driver is blocked, the dashboard switches to the flat map on its own. You can also choose **Map** with the Globe and Map buttons above it.
 
+### I only see one site, or the site switcher is missing
+
+The switcher appears when the key can read more than one site. Listing sites needs the **Read sites** permission, so create a new key with **Read statistics** and **Read sites** ticked, then disconnect and connect with it. A site on a custom domain must also answer the API from that domain with CORS allowed, like the first site (see the CORS section below).
+
 ### Campaign card doesn't appear
 
 The campaigns card only appears when GoatCounter has recorded campaign traffic (for example `utm_source`, `utm_medium`, `utm_campaign`) in the range you chose. With none, it is hidden on purpose, and it is also hidden if your instance does not offer the campaigns endpoint.
