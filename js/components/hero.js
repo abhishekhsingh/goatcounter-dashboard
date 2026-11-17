@@ -8,9 +8,9 @@ export function HeroChart({ series, prev, spikes, hover, onHover, onZoom, rangeK
   const [w, setW] = useState(900);
   useEffect(() => {
     if (!box.current) return;
-    const ro = new ResizeObserver((es) => setW(Math.max(280, Math.round(es[0].contentRect.width))));
+    let raf = 0; const ro = new ResizeObserver((es) => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => setW(Math.max(280, Math.round(es[0].contentRect.width)))); });
     ro.observe(box.current);
-    return () => ro.disconnect();
+    return () => { cancelAnimationFrame(raf); ro.disconnect(); };
   }, []);
   const H = w < 520 ? 230 : 320, M = { t: 14, r: 12, b: 28, l: 42 };
   const pw = w - M.l - M.r, ph = H - M.t - M.b;

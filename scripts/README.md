@@ -1,6 +1,6 @@
 # scripts/
 
-Optional build tooling for the GoatCounter dashboard. **The dashboard itself does not need Node.** Routine code changes (editing `../index.html`, CSS, etc.) don't run anything in this folder.
+Optional tooling for the GoatCounter dashboard. **The dashboard itself does not need Node and has no build step.** Routine changes (editing files under `../js/` or `../css/`) never run anything in this folder.
 
 ## When to use this
 
@@ -28,7 +28,9 @@ All three sources are pinned: the npm deps to exact versions in `package.json`, 
 
 - `window.WORLD_MAP_VIEWBOX`: `"0 0 1000 500"`.
 - `window.WORLD_MAP_PATHS`: `{ [isoAlpha2]: svgPathString }`. ~174 countries.
-- `window.WORLD_MAP_NAMES`: `{ [canonicalEnglishName]: isoAlpha2 }`, restricted to countries that have a path. Used by `index.html` as a fallback when its hand-curated `COUNTRY_NAME_TO_CODE` table doesn't have an explicit variant.
+- `window.WORLD_MAP_NAMES`: `{ [canonicalEnglishName]: isoAlpha2 }`, restricted to countries that have a path. Used by `../js/countries.js` as a fallback when its hand-curated `COUNTRY_NAME_TO_CODE` table doesn't have an explicit variant.
+
+The file is a plain script, not a module. The dashboard adds it to the page the first time the Countries card nears the viewport (see `loadWorldMap()` in `../js/countries.js`), so it costs nothing on the first load. The globe also reads these paths: it places each marker at the centre of the country's largest shape.
 
 The script's logic (projection, antimeridian split, country-name aliasing, Antarctica handling) is documented inline in `build-world-map.js`.
 
@@ -36,7 +38,7 @@ The script's logic (projection, antimeridian split, country-name aliasing, Antar
 
 If GoatCounter starts returning a country name that isn't matching:
 
-- **For variant English names** (e.g. "Czech Republic" vs "Czechia"): add the variant to `COUNTRY_NAME_TO_CODE` in `../index.html` and **don't** rebuild the map. The runtime table is the right place for variant handling.
+- **For variant English names** (e.g. "Czech Republic" vs "Czechia"): add the variant to `COUNTRY_NAME_TO_CODE` in `../js/countries.js` and **don't** rebuild the map. The runtime table is the right place for variant handling.
 - **For names world-atlas labels differently** (e.g. "United States of America" vs "United States"): the `nameAlias` map in `build-world-map.js` already covers known cases. Add to it and rebuild only if a new world-atlas-specific label comes up.
 
 When in doubt, append `?debug=1` to the dashboard URL. It logs unmapped names to the console so you can see exactly what's missing.

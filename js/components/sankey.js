@@ -36,9 +36,9 @@ export function SankeyCard({ api, range, ttl }) {
 
   useEffect(() => {
     if (!box.current) return;
-    const ro = new ResizeObserver((es) => setW(Math.max(300, Math.round(es[0].contentRect.width))));
+    let raf = 0; const ro = new ResizeObserver((es) => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => setW(Math.max(300, Math.round(es[0].contentRect.width)))); });
     ro.observe(box.current);
-    return () => ro.disconnect();
+    return () => { cancelAnimationFrame(raf); ro.disconnect(); };
   }, [flows && flows.links.length > 0]);
 
   const small = w < 600;

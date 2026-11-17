@@ -19,7 +19,7 @@ a { color: var(--accent); }
 .brand h1 { margin: 0; font-size: 1.05rem; font-weight: 600; letter-spacing: -.01em; line-height: 1.2; }
 .brand p { margin: 0; font: 400 .78rem var(--mono); color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.pills { display: flex; padding: 3px; gap: 2px; border: 1px solid var(--hair); border-radius: 12px; background: var(--surface); box-shadow: var(--sheen); }
+.pills { max-width: 100%; overflow-x: auto; scrollbar-width: none; display: flex; padding: 3px; gap: 2px; border: 1px solid var(--hair); border-radius: 12px; background: var(--surface); box-shadow: var(--sheen); }
 .pill { border: 0; background: none; padding: 7px 12px; min-height: 36px; border-radius: 9px; font: 500 .82rem var(--font); color: var(--text-2); transition: color .12s, background .12s; }
 .pill:hover { color: var(--text); }
 .pill[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); font-weight: 600; box-shadow: 0 4px 14px rgb(45 212 167 / .25); }
@@ -275,3 +275,5 @@ kbd { font: 500 .72rem var(--mono); padding: 2px 7px; border-radius: 6px; border
 .recap-prev img { display: block; width: 100%; border-radius: 14px; border: 1px solid var(--hair); }
 .recap .note { font-size: .74rem; color: var(--text-3); margin: 10px 2px; }
 .recap .btns { margin-top: 4px; }
+
+@media (max-width: 360px) { .pill { padding: 7px 7px; font-size: .76rem; } .tools { gap: 6px; } }

@@ -87,11 +87,11 @@ export function RecapDialog({ open, onClose, api, range, info, look }) {
   const save = async () => { setBusy(true); try { const blob = await toPng(svg); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `goatcounter-recap-${range.to}.png`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); } catch (e) { setMsg('Could not create the image in this browser.'); } setBusy(false); };
   const share = async () => { setBusy(true); try { const blob = await toPng(svg); const file = new File([blob], `goatcounter-recap-${range.to}.png`, { type: 'image/png' }); if (navigator.canShare && navigator.canShare({ files: [file] })) await navigator.share({ files: [file], title: 'My traffic recap' }); else setMsg('Sharing is not available here. Use Download instead.'); } catch (e) { /* cancelled */ } setBusy(false); };
   return html`<dialog ref=${dlg} class="recap" aria-label="Share a recap" onClose=${onClose} onCancel=${onClose} onClick=${(e) => { if (e.target === dlg.current) onClose(); }}>
-    <div class="recap-in">
+    ${open ? html`<div class="recap-in">
       <div class="recap-h"><h2>Share a recap</h2><button type="button" class="iconbtn" aria-label="Close" onClick=${onClose}>✕</button></div>
       <div class="recap-prev">${url ? html`<img src=${url} alt=${`Recap card: ${fmtFull(info.cur)} visitors, ${info.range}`} />` : html`<div class="skeleton" style="aspect-ratio:4/5"></div>`}</div>
       <p class="note">Counts under 5 are left out so small numbers stay private. Everything is made in your browser.</p>
       <div class="btns"><button type="button" class="btn primary" disabled=${!svg || busy} onClick=${save}>Download PNG</button>${navigator.share ? html`<button type="button" class="btn" disabled=${!svg || busy} onClick=${share}>Share</button>` : null}</div>
       <div class="sky-note" aria-live="polite">${msg}</div>
-    </div></dialog>`;
+    </div>` : null}</dialog>`;
 }

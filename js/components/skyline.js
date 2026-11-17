@@ -48,7 +48,7 @@ function Skyline({ m, n, themeKey, onNote }) {
     const kick = () => { if (!raf) raf = requestAnimationFrame(loop); };
     S.kick = kick; draw(performance.now()); kick();
     const io = new IntersectionObserver((es) => { S.vis = es[0].isIntersecting; if (S.vis) { S.born = performance.now() - (reduced ? 0 : 0); kick(); } }); io.observe(canvas);
-    const ro = new ResizeObserver(() => { draw(performance.now()); }); ro.observe(canvas);
+    let rraf = 0; const ro = new ResizeObserver(() => { cancelAnimationFrame(rraf); rraf = requestAnimationFrame(() => draw(performance.now())); }); ro.observe(canvas);
     return () => { if (raf) cancelAnimationFrame(raf); io.disconnect(); ro.disconnect(); };
   }, [m, n, themeKey]);
   const point = (e) => {
