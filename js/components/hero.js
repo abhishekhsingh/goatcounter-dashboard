@@ -56,7 +56,9 @@ export function HeroChart({ series, prev, spikes, hover, onHover, onZoom, rangeK
   const hp = hover !== null ? series[hover] : null;
   const pp = hover !== null ? prev[hover] : null;
   const spike = hover !== null ? spikes.find((s) => s.i === hover) : null;
-  const tipLeft = hp ? (g.x(hover) > w * 0.62 ? g.x(hover) - 252 : g.x(hover) + 14) : 0;
+  const seen = Math.min(w, (box.current && box.current.clientWidth) || w); // the chart draws at least 280 px wide, but the card can be narrower
+  const tipW = Math.min(seen - 8, Math.max(168, Math.min(240, Math.round(seen * 0.62)))); // at most 240 px, and always inside what is visible
+  const tipLeft = hp ? Math.max(4, Math.min(g.x(hover) > seen * 0.5 ? g.x(hover) - tipW - 10 : g.x(hover) + 14, seen - tipW - 4)) : 0;
   const readout = hp ? `${hp.long}: ${fmtFull(hp.v || 0)} visitors${pp ? `, ${fmtFull(pp.v || 0)} in the previous period` : ''}` : '';
 
   return html`<div class="chart" ref=${box} style=${{ height: H + 'px' }} tabindex="0" role="group"

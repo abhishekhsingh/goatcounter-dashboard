@@ -79,6 +79,8 @@ class Stars {
       const side = this.sides[Math.floor(rand() * this.sides.length)], dive = kind === 'dive';
       len = 150 + rand() * 60; travel = dive ? 430 + rand() * 220 : 190 + rand() * 90; dur = dive ? 1.4 + rand() * 0.3 : 0.95;
       const deg = dive ? 24 + rand() * 18 : 58 + rand() * 16; ang = (side.k === 'l' ? deg : 180 - deg) * rad;
+      if (!dive) travel = Math.min(travel, (side.w - 28) / Math.abs(Math.cos(ang))); // shorten it to fit the margin; a narrow margin used to skip the streak
+      if (travel < 110) return;
       const dx = Math.cos(ang) * travel, room = dive ? side.w - 24 : side.w - Math.abs(dx) - 16; if (room < 4) return;
       x = side.k === 'l' ? side.x + 8 + rand() * room : (dive ? side.x + side.w - 8 - rand() * room : side.x + 8 + Math.abs(dx) + rand() * room); y = vh * (0.05 + rand() * (dive ? 0.5 : 0.45));
     }

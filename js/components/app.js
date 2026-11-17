@@ -23,7 +23,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function warm(api) {
   let last;
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < 2; i++) { // each try already retries twice with a back-off, so two is enough before telling the user
     try { return await api.get('/api/v0/me', { force: true }); } catch (e) { last = e; if (e.kind === 'auth' || e.kind === 'notfound') throw e; await sleep(600); }
   }
   throw last;

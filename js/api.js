@@ -87,7 +87,8 @@ export class API {
               throw limited();
             }
             const transient = e instanceof TypeError || e.kind === 'rate';
-            if (!transient || attempt >= retries) throw e;
+            if (!transient || attempt >= retries) throw e instanceof TypeError ? unreachable(this.baseURL) : e; // the browser's own text is only "Failed to fetch"
+
             await new Promise((r) => setTimeout(r, e.kind === 'rate' ? Math.max(1000, (e.retryAfter || 1) * 1000) : 700 + attempt * 900 + Math.random() * 200));
           }
         }
@@ -116,6 +117,9 @@ export class API {
 
 // Window cache rules: a window that ended before today never changes, today refreshes quickly.
 export const ttlFor = (range) => (range.live ? 60_000 : 6 * 3600_000);
+
+// When a request never gets an answer (offline, wrong address, or a blocker in the way) the browser only says "Failed to fetch" or "Load failed".
+const unreachable = (url) => Object.assign(new Error(`Could not reach ${url}. If you have an ad blocker or a privacy extension, try disabling it for this page. Otherwise check the address and your internet connection.`), { kind: 'network' });
 
 export const q = (o) => Object.entries(o).filter(([, v]) => v !== undefined && v !== null && v !== '').map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&');
 
