@@ -136,6 +136,13 @@ a { color: var(--accent); }
 /* ---------- view transition for the theme switch ---------- */
 ::view-transition-old(root), ::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
 
+/* ---------- refresh ---------- */
+.iconbtn.spin svg { animation: gc-spin .9s linear infinite; }
+@keyframes gc-spin { to { transform: rotate(360deg); } }
+.toast { position: fixed; left: 50%; bottom: 22px; transform: translate(-50%, 12px); opacity: 0; pointer-events: none; padding: 9px 16px; border-radius: 999px; border: 1px solid var(--hair-2); background: var(--surface); color: var(--text); font-size: .82rem; box-shadow: 0 8px 28px rgba(0,0,0,.28); transition: opacity .2s, transform .2s; z-index: 60; }
+.toast.on { opacity: 1; transform: translate(-50%, 0); }
+.toast:empty { display: none; }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
   .line-draw { stroke-dashoffset: 0; } .area-in { opacity: 1; }

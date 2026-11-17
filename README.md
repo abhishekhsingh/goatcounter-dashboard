@@ -92,6 +92,7 @@ There is no build step and nothing to install.
 | `l` | Switch light and dark |
 | `n` | Switch Nova and Classic |
 | `r` | Share a recap image |
+| `Shift` + `R` | Refresh data (clears this site's cache and fetches everything again) |
 | Arrow keys | Move along the main chart (when it has focus) |
 
 Shortcuts are ignored while you type in a field.
@@ -133,7 +134,7 @@ The dashboard talks to GoatCounter's read-only REST API (`/api/v0`) with a Beare
 
 **Rate limit.** GoatCounter allows 4 requests per second. Requests go out one at a time with a short gap, and the client follows the `X-Rate-Limit-*` headers when the browser can read them. A 429 or a network hiccup retries with a back-off, and each card has its own Retry button.
 
-**Caching.** Answers are cached in IndexedDB. A range that includes today counts as fresh for 60 seconds. A range that ended earlier counts as fresh for 6 hours. An older copy is shown instantly while a fresh one loads. Disconnect clears the cache for that site.
+**Caching.** Answers are cached in IndexedDB. A range that includes today counts as fresh for 60 seconds. A range that ended earlier counts as fresh for 6 hours. An older copy is shown instantly while a fresh one loads. The **Refresh** button in the header (or `Shift` + `R`) clears the cache for that site and fetches every visible card again. Disconnect clears it too.
 
 **Time zones.** Days and hours are computed in the time zone GoatCounter reports for your account, falling back to your browser's.
 

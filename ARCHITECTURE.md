@@ -57,7 +57,7 @@ GoatCounter buckets days and hours in the account's time zone. `util.js` compute
 
 ### Cache
 
-`cache.js` stores `{ t, data }` under `baseURL|endpoint`. `api.get(endpoint, { ttl })` returns a fresh copy straight away, or calls `onStale` with an older one and then fetches. `ttlFor(range)` gives 60 seconds when the range includes today and 6 hours otherwise. `clearCache` removes one site's keys.
+`cache.js` stores `{ t, data }` under `baseURL|endpoint`. `api.get(endpoint, { ttl })` returns a fresh copy straight away, or calls `onStale` with an older one and then fetches. `ttlFor(range)` gives 60 seconds when the range includes today and 6 hours otherwise. `clearCache` removes one site's keys. **Refresh data** calls it, then bumps an `epoch` in the context; `useApi` lists the epoch as a dependency and fetches with `force`, so each mounted card keeps its old answer on screen until the new one arrives.
 
 ## The two designs
 

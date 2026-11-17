@@ -1,4 +1,4 @@
-import { html, useState, useEffect, useMemo, useRef, Fragment } from '../ui.js';
+import { html, useState, useEffect, useMemo, useRef, useContext, Fragment } from '../ui.js';
 import { API, q, ttlFor } from '../api.js';
 import { Ctx, useApi, useTicker, Skeleton, Delta } from './common.js';
 import { HeroChart } from './hero.js';
@@ -113,6 +113,12 @@ function Dashboard({ api, demo, theme, look, onLook, onTheme, onDisconnect }) {
   const [hover, setHover] = useState(null);
   const [palette, setPalette] = useState(false);
   const [recap, setRecap] = useState(false);
+  const base = useContext(Ctx);
+  const [epoch, setEpoch] = useState(0);
+  const [busy, setBusy] = useState(0); // time the refresh started, 0 when idle
+  const [toast, setToast] = useState('');
+  const [settled, setSettled] = useState(false); // the spinner shows for at least 700 ms
+  const ctxValue = useMemo(() => ({ ...base, epoch }), [base, epoch]);
   const range = useMemo(() => makeRange(preset, tz, custom, now), [preset, tz, custom, now]);
   const ttl = ttlFor(range);
   const choose = (p) => { setCustom(null); setPreset(p); setHover(null); if (p !== 'custom') write(RANGE_KEY, p); };
@@ -123,6 +129,18 @@ function Dashboard({ api, demo, theme, look, onLook, onTheme, onDisconnect }) {
   const prevTotal = useApi(api, E('total', range.prev), { ttl: 6 * 3600_000 });
   const hits = useApi(api, E('hits', range, { limit: 20 }), { ttl });
   const refs = useApi(api, E('toprefs', range, { limit: 12 }), { ttl });
+
+  const refresh = async () => {
+    if (demo || busy) return;
+    setBusy(Date.now()); setSettled(false); setToast(''); setTimeout(() => setSettled(true), 700);
+    await api.clearCache();
+    setEpoch((e) => e + 1);
+  };
+  useEffect(() => {
+    if (!busy || !settled || total.loading || hits.loading || refs.loading) return;
+    setBusy(0); setToast('Updated just now');
+  }, [busy, settled, total.loading, hits.loading, refs.loading]);
+  useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(''), 2600); return () => clearTimeout(t); }, [toast]);
 
   const series = useMemo(() => (total.data ? buildSeries(total.data, range, now, tz) : []), [total.data, range, now, tz]);
   const prevSeries = useMemo(() => (prevTotal.data ? buildSeries(prevTotal.data, { ...range, from: range.prev.from, to: range.prev.to, live: false }, now, tz) : []), [prevTotal.data, range, now, tz]);
@@ -158,13 +176,14 @@ function Dashboard({ api, demo, theme, look, onLook, onTheme, onDisconnect }) {
     { id: 'a-mode', group: 'Appearance', label: theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode', keys: 'l', run: () => onTheme() },
     { id: 'a-look', group: 'Appearance', label: look === 'nova' ? 'Use the Classic design' : 'Use the Nova design', keys: 'n', run: () => onLook(look === 'nova' ? 'classic' : 'nova') },
     { id: 'a-pin', group: 'Appearance', label: window.gcPref && window.gcPref.pinned() ? 'Forget my design choice' : 'Remember my design choice', run: () => { if (window.gcPref) window.gcPref.pin(!window.gcPref.pinned()); } },
+    ...(demo ? [] : [{ id: 'x-refresh', group: 'Actions', label: 'Refresh data', keys: 'shift+r', run: refresh }]),
     { id: 'x-recap', group: 'Actions', label: 'Share a recap image', keys: 'r', run: () => setRecap(true) },
     { id: 'x-out', group: 'Actions', label: demo ? 'Exit the demo' : 'Disconnect', run: onDisconnect },
     ...['Top pages', 'Referrers', 'Where traffic goes', 'Countries', 'When readers show up', 'Your year', 'Browsers', 'Operating systems', 'Devices', 'Languages'].map((l) => ({ id: 'g-' + l.replace(/\s/g, ''), group: 'Go to', label: l, run: go(l) })),
   ];
-  useShortcuts({ t: () => choose('today'), w: () => choose('7d'), m: () => choose('30d'), q: () => choose('90d'), y: () => choose('12m'), l: () => onTheme(), n: () => onLook(look === 'nova' ? 'classic' : 'nova'), r: () => setRecap(true), '/': () => setPalette(true), '?': () => setPalette(true), 'mod+k': () => setPalette(true) });
+  useShortcuts({ t: () => choose('today'), w: () => choose('7d'), m: () => choose('30d'), q: () => choose('90d'), y: () => choose('12m'), l: () => onTheme(), n: () => onLook(look === 'nova' ? 'classic' : 'nova'), r: () => setRecap(true), 'shift+r': refresh, '/': () => setPalette(true), '?': () => setPalette(true), 'mod+k': () => setPalette(true) });
 
-  return html`<div>
+  return html`<${Ctx.Provider} value=${ctxValue}><div>
     ${demo ? html`<aside class="banner" aria-label="Demo notice"><span><b>Demo data.</b> A seeded sample site, so you can explore every view without an account.</span><button type="button" onClick=${onDisconnect}>Exit demo</button></aside>` : null}
     <header class="topbar">
       <div class="brand"><div class="mark" aria-hidden="true">🐐</div><div style="min-width:0"><h1>GoatCounter Dashboard</h1><p>${siteName} · ${tz.replace('_', ' ')}</p></div></div>
@@ -176,6 +195,7 @@ function Dashboard({ api, demo, theme, look, onLook, onTheme, onDisconnect }) {
         <button type="button" class="iconbtn" aria-label="Appearance" title="Appearance" popovertarget="appearance"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="13.5" cy="6.5" r=".6" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".6" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".6" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".6" fill="currentColor"/><path d="M12 2a10 10 0 1 0 0 20 2 2 0 0 0 2-2c0-.5-.2-1-.5-1.3-.3-.4-.5-.8-.5-1.3a2 2 0 0 1 2-2H17a5 5 0 0 0 5-5c0-4.4-4.5-8-10-8z"/></svg></button>
         <button type="button" class="iconbtn" aria-label=${theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'} onClick=${(e) => { const r = e.currentTarget.getBoundingClientRect(); onTheme({ x: r.left + r.width / 2, y: r.top + r.height / 2 }); }}>
           ${theme === 'dark' ? html`<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>` : html`<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>`}</button>
+        ${demo ? null : html`<button type="button" class=${'iconbtn' + (busy ? ' spin' : '')} aria-label="Refresh data" title="Refresh data (Shift+R)" aria-busy=${String(!!busy)} onClick=${refresh}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 0 1-15.5 6.2L3 16M3 12a9 9 0 0 1 15.5-6.2L21 8M21 3v5h-5M3 21v-5h5"/></svg></button>`}
         ${demo ? null : html`<button type="button" class="iconbtn" aria-label="Disconnect" title="Disconnect" onClick=${onDisconnect}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg></button>`}
       </div>
     </header>
@@ -217,6 +237,7 @@ function Dashboard({ api, demo, theme, look, onLook, onTheme, onDisconnect }) {
     <${AppearancePanel} look=${look} onLook=${onLook} />
     <${Palette} open=${palette} onClose=${() => setPalette(false)} commands=${commands} />
     <${RecapDialog} open=${recap} onClose=${() => setRecap(false)} api=${api} range=${range} info=${recapInfo} look=${look} />
+    <div class=${'toast' + (toast ? ' on' : '')} role="status" aria-live="polite">${toast}</div>
     <footer class="foot"><p>Counts are visitors, as GoatCounter reports them. Days and hours use the site's time zone.<br/>Browser and system logos are trademarks of their owners, shown to identify the software only.</p></footer>
-  </div>`;
+  </div><//>`;
 }
