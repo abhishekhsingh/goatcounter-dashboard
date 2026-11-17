@@ -67,7 +67,7 @@ a { color: var(--accent); }
 .chart { position: relative; margin-top: 14px; touch-action: pan-y; }
 .chart svg { display: block; width: 100%; overflow: visible; }
 .chart:focus-visible { outline-offset: 4px; }
-.tip { position: absolute; top: 0; z-index: 3; min-width: 168px; max-width: 240px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--hair-2); background: color-mix(in oklab, var(--surface-2) 92%, transparent); backdrop-filter: blur(8px); box-shadow: 0 12px 40px rgb(0 0 0 / .35); pointer-events: none; font-size: .78rem; }
+.tip { position: absolute; top: 0; z-index: 3; min-width: min(168px, calc(100% - 8px)); max-width: min(240px, calc(100% - 8px)); padding: 10px 12px; border-radius: 12px; border: 1px solid var(--hair-2); background: color-mix(in oklab, var(--surface-2) 92%, transparent); backdrop-filter: blur(8px); box-shadow: 0 12px 40px rgb(0 0 0 / .35); pointer-events: none; font-size: .78rem; }
 .tip b { display: block; font: 500 .72rem var(--mono); color: var(--text-3); margin-bottom: 4px; letter-spacing: .04em; }
 .tip .v { font: 500 1.3rem var(--mono); letter-spacing: -.02em; }
 .tip .p { color: var(--text-3); font: 400 .74rem var(--mono); }
@@ -143,9 +143,11 @@ a { color: var(--accent); }
 .help summary { cursor: pointer; color: var(--text-2); }
 .help ol { padding-left: 20px; }
 .foot { margin-top: 40px; text-align: center; font: 400 .74rem/1.7 var(--mono); color: var(--text-2); }
-.foot p { margin: 0; }
+.foot p { margin: 0; font-size: .66rem; color: var(--text-3); } /* the disclaimer: small and quiet */
+.foot .credit { font-size: .72rem; color: var(--text-2); }
 .connect .foot { margin: 30px 0 0; }
-.connect .foot p { margin: 0; color: inherit; }
+.connect .foot p { margin: 0; font-size: .66rem; color: var(--text-3); }
+.connect .foot .credit { margin: 12px 0 0; font-size: .72rem; color: var(--text-2); }
 .foot .credit { margin: 12px 0 0; }
 .credit a { color: var(--text); text-decoration: underline; text-decoration-color: color-mix(in oklab, var(--accent) 65%, transparent); text-underline-offset: 3px; border-radius: 3px; transition: color .15s; }
 .credit a:hover { color: var(--accent); }
@@ -183,7 +185,8 @@ main > .anchor { margin: 0; }
 .sitepop ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
 .sitepop li button { display: flex; width: 100%; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--hair); border-radius: 12px; background: none; color: var(--text); font: 500 .86rem var(--font); text-align: left; }
 .sitepop li button:hover, .sitepop li button.on { border-color: var(--accent); background: color-mix(in oklab, var(--accent) 10%, transparent); }
-.sitepop li button.on { color: var(--accent); }
+.sitepop li button.on { color: var(--text); font-weight: 600; }
+.sitepop li button.on svg { color: var(--accent); }
 .filterbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: var(--gap); padding: 10px 14px; border-radius: 14px; border: 1px solid color-mix(in oklab, var(--accent) 40%, transparent); background: color-mix(in oklab, var(--accent) 10%, var(--surface)); font-size: .86rem; min-width: 0; }
 .filterbar b { overflow-wrap: anywhere; }
 .filterbar button { border: 1px solid var(--hair-2); background: var(--surface); border-radius: 10px; padding: 6px 12px; color: var(--text); font: 600 .78rem var(--font); }

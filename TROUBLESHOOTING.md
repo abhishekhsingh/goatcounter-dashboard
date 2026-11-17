@@ -8,9 +8,9 @@ This guide covers the most common issues people run into when connecting the Goa
 
 ## Connection Issues
 
-### "Could not reach [URL] … If you have an ad blocker … try disabling it"
+### "Could not reach [URL]. If you have an ad blocker or a privacy extension, try disabling it for this page."
 
-This is the most common error, and it can have several causes. The error message itself hints at ad blockers; work through the causes in order:
+This is the most common error. It means the browser sent the request but never got an answer, which has several causes. The message itself hints at ad blockers; work through the causes in order:
 
 #### 1. Ad blocker interference (most common cause)
 
