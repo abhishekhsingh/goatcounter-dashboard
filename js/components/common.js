@@ -4,18 +4,20 @@ import { tweenTo, monotonePath, fmtFull } from '../util.js';
 export const Ctx = createContext({});
 
 // Loads one endpoint. Keeps the previous answer on screen while the next one loads, so cards do not jump.
-export function useApi(api, endpoint, { ttl = 60_000, enabled = true } = {}) {
+export function useApi(api, endpoint, { ttl = 60_000, enabled = true, epoch: given } = {}) {
   const ctx = useContext(Ctx);
   const [s, setS] = useState({ data: null, error: null, loading: enabled, stale: false });
   const [n, setN] = useState(0);
-  const epoch = ctx.epoch || 0; // bumped by Refresh data: every mounted card fetches again and keeps its old answer on screen meanwhile
+  // Bumped by Refresh data: every mounted card fetches again and keeps its old answer on screen meanwhile. Dashboard's own
+  // calls sit above the provider that carries the epoch, so they are handed it directly.
+  const epoch = given !== undefined ? given : ctx.epoch || 0;
   useEffect(() => {
     if (!enabled || !endpoint) return;
     let dead = false;
     setS((p) => ({ ...p, loading: true, error: null }));
-    api.get(endpoint, { ttl, force: n > 0 || epoch > 0, onStale: (d) => { if (!dead) setS({ data: d, error: null, loading: true, stale: true }); } })
+    api.get(endpoint, { ttl, force: n > 0 || epoch > 0, skip: () => dead, onStale: (d) => { if (!dead) setS({ data: d, error: null, loading: true, stale: true }); } })
       .then((d) => { if (!dead) setS({ data: d, error: null, loading: false, stale: false }); })
-      .catch((e) => { if (dead) return; if (e.kind === 'auth' && ctx.onAuthError) ctx.onAuthError(e); setS((p) => ({ ...p, error: e, loading: false })); });
+      .catch((e) => { if (dead) return; if (e.kind === 'auth' && ctx.onAuthError) ctx.onAuthError(e); setS((p) => (e.kind === 'limit' && p.data ? { ...p, error: null, loading: false, stale: true } : { ...p, error: e, loading: false })); });
     return () => { dead = true; };
   }, [api, endpoint, enabled, n, ttl, epoch]);
   return { ...s, retry: () => setN((x) => x + 1) };

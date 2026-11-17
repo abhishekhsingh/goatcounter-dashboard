@@ -24,7 +24,7 @@ export function SankeyCard({ api, range, ttl }) {
     (async () => {
       for (let i = 0; i < sources.length; i++) {
         try {
-          const r = await api.get(`/api/v0/stats/toprefs/${encodeURIComponent(sources[i].id)}?${q({ start: range.start, end: range.end, limit: 10 })}`, { ttl });
+          const r = await api.get(`/api/v0/stats/toprefs/${encodeURIComponent(sources[i].id)}?${q({ start: range.start, end: range.end, limit: 10 })}`, { ttl, skip: () => dead });
           for (const p of (r && r.stats) || []) if (p.count > 0 && (p.name || p.id)) links.push({ src: sources[i].name, srcIdx: i, page: p.name || String(p.id), count: p.count });
         } catch (e) { /* a failed source is simply left out */ }
         if (dead) return;

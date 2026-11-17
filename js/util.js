@@ -19,7 +19,11 @@ function dtf(tz) {
   return dtfCache.get(tz);
 }
 export function browserTZ() { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch { return 'UTC'; } }
-export function validTZ(tz) { try { dtf(tz); return tz; } catch { return browserTZ(); } }
+// GoatCounter stores a zone as "IN.Asia/Kolkata" (country code, a dot, then the IANA name); the dot-prefix is dropped.
+export function validTZ(tz) {
+  const name = String(tz || '').replace(/^[A-Za-z]{2}\./, '');
+  try { dtf(name); return name; } catch { return browserTZ(); }
+}
 
 export function zoned(date, tz) {
   const o = {};

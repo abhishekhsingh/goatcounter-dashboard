@@ -164,7 +164,12 @@ function Dashboard({ api: baseApi, demo, sites = [], onSite, switching, theme, l
   const [epoch, setEpoch] = useState(0);
   const [busy, setBusy] = useState(0); // time the refresh started, 0 when idle
   const [toast, setToast] = useState('');
-  const [settled, setSettled] = useState(false); // the spinner shows for at least 700 ms
+  const [limit, setLimit] = useState(baseApi.blockedUntil > Date.now() ? baseApi.blockedUntil : 0); // when GoatCounter's request cap reopens
+  useEffect(() => { baseApi.onLimit = setLimit; return () => { baseApi.onLimit = null; }; }, [baseApi]);
+  useEffect(() => { if (!limit) return; const t = setTimeout(() => setLimit(0), Math.max(0, limit - Date.now()) + 500); return () => clearTimeout(t); }, [limit]);
+  const [settled, setSettled] = useState(false);
+  const [applied, setApplied] = useState(0); // the epoch the cards have started on, so "done" is never read from before they began
+  useEffect(() => { setApplied(epoch); }, [epoch]); // the spinner shows for at least 700 ms
   const ctxValue = useMemo(() => ({ ...base, epoch }), [base, epoch]);
   const range = useMemo(() => makeRange(preset, tz, custom, now), [preset, tz, custom, now]);
   const ttl = ttlFor(range);
@@ -172,10 +177,10 @@ function Dashboard({ api: baseApi, demo, sites = [], onSite, switching, theme, l
   const zoomDay = (day) => { setCustom({ start: day, end: day }); setPreset('custom'); setHover(null); };
 
   const E = (path, r, extra = {}) => `/api/v0/stats/${path}?${q({ start: r.start, end: r.end, ...extra })}`;
-  const total = useApi(api, E('total', range), { ttl });
-  const prevTotal = useApi(api, E('total', range.prev), { ttl: 6 * 3600_000 });
-  const hits = useApi(api, E('hits', range, { limit: 20 }), { ttl });
-  const refs = useApi(api, E('toprefs', range, { limit: 12 }), { ttl });
+  const total = useApi(api, E('total', range), { ttl, epoch });
+  const prevTotal = useApi(api, E('total', range.prev), { ttl: 6 * 3600_000, epoch });
+  const hits = useApi(api, E('hits', range, { limit: 20 }), { ttl, epoch });
+  const refs = useApi(api, E('toprefs', range, { limit: 12 }), { ttl, epoch });
 
   const refresh = async () => {
     if (demo || busy) return;
@@ -184,9 +189,9 @@ function Dashboard({ api: baseApi, demo, sites = [], onSite, switching, theme, l
     setEpoch((e) => e + 1);
   };
   useEffect(() => {
-    if (!busy || !settled || total.loading || hits.loading || refs.loading) return;
+    if (!busy || !settled || applied !== epoch || total.loading || hits.loading || refs.loading) return;
     setBusy(0); setToast('Updated just now');
-  }, [busy, settled, total.loading, hits.loading, refs.loading]);
+  }, [busy, settled, applied, epoch, total.loading, hits.loading, refs.loading]);
   useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(''), 2600); return () => clearTimeout(t); }, [toast]);
 
   const series = useMemo(() => (total.data ? buildSeries(total.data, range, now, tz) : []), [total.data, range, now, tz]);
@@ -243,6 +248,7 @@ function Dashboard({ api: baseApi, demo, sites = [], onSite, switching, theme, l
 
   return html`<${Ctx.Provider} value=${ctxValue}><div style=${switching ? 'opacity:.55;pointer-events:none;transition:opacity .2s' : null} aria-busy=${String(!!switching)}>
     ${demo ? html`<aside class="banner" aria-label="Demo notice"><span><b>Demo data.</b> A seeded sample site, so you can explore every view without an account.</span><button type="button" onClick=${onDisconnect}>Exit demo</button></aside>` : null}
+    ${limit ? html`<aside class="banner" role="status"><span><b>Request limit reached.</b> GoatCounter allows a limited number of requests per hour for a key. Saved numbers are shown where there are any. It reopens in about ${Math.max(1, Math.ceil((limit - Date.now()) / 60000))} min.</span></aside>` : null}
     <header class="topbar">
       <div class="brand"><div class="mark" aria-hidden="true">🐐</div><div style="min-width:0"><h1>GoatCounter Dashboard</h1><p>${sites.length > 1 ? html`<button type="button" class="sitebtn" popovertarget="sitepop" aria-label=${'Switch site. Open now: ' + siteName} title="Switch site (s)">${siteName}<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>` : siteName} · ${tz.replace('_', ' ')}</p></div></div>
       <div class="tools">

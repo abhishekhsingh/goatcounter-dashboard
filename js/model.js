@@ -53,7 +53,12 @@ export function hourWeekday(total) {
     const wd = weekdayOf(s.day);
     s.hourly.forEach((v, h) => cells[wd][h].push(v));
   }
-  return { m: cells.map((row) => row.map((a) => median(a))), n: new Array(7).fill(1), samples: cells[0][0].length };
+  const typical = cells.map((row) => row.map((a) => median(a)));
+  // A light site has a median of 0 almost everywhere, which says nothing. Below that, show the average per cell instead.
+  if (typical.flat().reduce((a, b) => a + b, 0) >= 60) return { m: typical, n: new Array(7).fill(1), samples: cells[0][0].length, sparse: false, enough: true };
+  const visits = cells.flat(2).reduce((a, b) => a + b, 0);
+  const avg = cells.map((row) => row.map((a) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0)));
+  return { m: avg, n: new Array(7).fill(1), samples: cells[0][0].length, sparse: true, enough: visits >= 30 };
 }
 
 export function buildInsights({ total, series, prevSeries, prevTotal, range, hits, now, tz }) {
