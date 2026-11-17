@@ -9,4 +9,4 @@ requestAnimationFrame(() => { const b = document.getElementById('boot'); if (b) 
 
 // Nova's living background loads once the first screen is up, so it never competes with it. It switches itself off in Classic.
 const later = window.requestIdleCallback || ((f) => setTimeout(f, 600));
-setTimeout(() => later(() => { import('./ambient.js').then((m) => m.ambient.start()).catch(() => {}); }, { timeout: 3000 }), 900);
+setTimeout(() => later(() => { import('./ambient.js').then((m) => m.ambient.start()).catch(() => {}); import('./stars.js').then((m) => m.stars.start()).catch(() => {}); }, { timeout: 3000 }), 900);

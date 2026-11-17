@@ -226,6 +226,10 @@ After you connect, the first screen needs five requests: a connection check (`/m
 
 Later visits are faster. Answers are cached in your browser (60 seconds for a range that includes today, 6 hours for older ranges), and an older copy is shown immediately while a fresh one loads.
 
+### I do not see the stars
+
+The starfield shows in dark Nova, in the empty margins beside the content, so it needs a screen wider than about 1400 px. It is left out in light mode, in Classic, with **Background** set to **Off**, on low-end devices and with reduced motion (which keeps the stars but stops the twinkle and the shooting stars). **Still** keeps the stars and removes the twinkle and shooting stars.
+
 ### The Nova background is a plain gradient
 
 The flowing background is optional. It switches itself off, and the plain gradient blobs stay, when WebGL is missing or the graphics context is lost, when the browser asks to save data, on a device with two cores or 2 GB of memory or less, and when its first frames are too slow even after drawing smaller. It also shows a single still frame when your system asks for reduced motion, and it is never loaded in the Classic design. If you find it distracting, open **Appearance** and set **Background** to **Still** or **Off**.
