@@ -45,7 +45,7 @@ for (const c of isoList) {
 // Manual aliases keep the lookup deterministic without depending on fuzzy
 // matching. Keep this list trimmed to actual world-atlas labels — adding
 // arbitrary variants here belongs in the runtime COUNTRY_NAME_TO_CODE table
-// in index.html, not here.
+// in js/countries.js, not here.
 const nameAlias = {
   'United States of America': 'US',
   'W. Sahara': 'EH',
@@ -178,7 +178,7 @@ console.error('Unmapped (no ISO match — DROPPED):', unmapped.join(', ') || '(n
 
 // --- Canonical names list -----------------------------------------------
 // Restricted to countries we actually have a path for. Used at runtime as
-// the fallback when COUNTRY_NAME_TO_CODE in index.html doesn't have an
+// the fallback when COUNTRY_NAME_TO_CODE in js/countries.js does not have an
 // explicit variant. ISO is missing Kosovo; that's fine, it's covered by
 // nameAlias above and shipped via WORLD_MAP_PATHS.
 const namesMap = {};

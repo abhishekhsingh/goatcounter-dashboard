@@ -1,162 +1,212 @@
 # 🐐 GoatCounter Dashboard
 
-An open-source alternative dashboard for [GoatCounter](https://www.goatcounter.com/) analytics. Dark mode by default, interactive charts, fully responsive, and zero servers, zero build step, zero cost. It's a single `index.html` file that you can host anywhere (GitHub Pages, Netlify, your local disk).
+An open-source dashboard for [GoatCounter](https://www.goatcounter.com/) analytics. Two designs, a globe, a 3D skyline of when your readers show up, a calendar year with streaks, and a shareable recap image. It loads fast, runs entirely in your browser, and needs no server, no build step and no account.
 
-![Dashboard Screenshot](assets/screenshot.png)
+🔗 **Live**: [abhishekhsingh.github.io/goatcounter-dashboard](https://abhishekhsingh.github.io/goatcounter-dashboard) (press **Try demo**, no key needed)
+
+![The dashboard in the Nova design](assets/screenshots/overview.jpg)
 
 ## ✨ Features
 
-- **Interactive charts:** area chart for traffic, donut charts for browsers/OS/devices, horizontal bars for countries and languages.
-- **Choropleth world map:** countries shaded by visitor count (square-root scale so small markets stay visible), with hover tooltips and a gradient legend.
-- **Demo mode:** one click on the connect screen loads the full dashboard with realistic sample data. No API key, no account, no setup. Useful for trying before connecting and for sharing on social/forums.
-- **Dark and light mode:** defaults to your system preference, toggle persisted across sessions.
-- **Flexible date ranges:** Today, 7d, 30d, 90d, or a custom range.
-- **Period-over-period trend:** the Total visitors KPI shows a trend arrow against the previous equivalent window.
-- **Drill-down everywhere:** click any page for its referrers, any browser/OS/device for version details, any country for region breakdown, or any campaign for referrer URLs. World map highlights the selected country.
-- **Smart loading:** KPIs and the traffic chart load first; donut, geo, and campaign breakdowns lazy-fetch only when you scroll to them.
-- **60-second response cache:** switching themes, or returning to a date range or tab you viewed within the last minute, makes zero network requests.
-- **Per-card retry:** if a card fails (rate limit, hiccup), recover it with a single click instead of refreshing the whole dashboard.
-- **Rate-limit aware:** strictly sequential request queue with a 500ms gap between requests, so it stays well under GoatCounter's rate limit.
-- **Loading indicator:** "Loading X of Y..." while fetching, "Updated Xs ago" when idle.
-- **Fully responsive:** single column on mobile, two-column on tablet, full grid on desktop.
-- **Zero build step:** single `index.html`, React + Recharts loaded from CDN. Open in a browser and it works.
-- **Privacy-first:** your API key is stored only in your browser's localStorage, and your key and stats are only ever sent to your own GoatCounter instance.
-- **Accessible:** proper ARIA roles, keyboard navigation, focus indicators, and skeleton loading states.
+**Two designs, one engine**
+- **Nova** (default): glass cards, a slow aurora, a glowing gradient line, tilting stat cards and a WebGL globe.
+- **Classic**: the original flat, calm look, with the same data and the same features.
+- Both come in dark and light. A new visit always opens in **Nova dark**. Your choice lasts for the tab, and you can tick **Remember my choice** to keep it for next time.
 
-## 🚀 Quick Start
+**Views**
+- **Visitors over time**: a line that draws itself, a ghost line for the previous period, a dashed live edge, annotated spikes, and a crosshair that follows the pointer, touch or arrow keys. Click a day to zoom into its 24 hours.
+- **Highlights**: plain sentences generated from your numbers, for example "Sunday is your strongest day".
+- **Stat cards**: visitors, per day, peak, top page and top referrer, with trend chips and sparklines.
+- **Top pages** with a sparkline each, and a referrer drill-down on click.
+- **Referrers** with link, search and campaign tags, and the pages each one sends traffic to.
+- **Where visitors go next**: a Sankey from your biggest referrers to the pages they land on.
+- **Countries**: a globe (or a flat map) with flags and a region drill-down.
+- **When your readers show up**: a 3D skyline by weekday and hour (a flat grid in Classic) and a 24-hour clock. Typical values, so one viral day cannot skew the pattern.
+- **Your year**: a calendar of the last 12 months, streaks, and three goal rings against a monthly goal you can set.
+- **Browsers, systems and devices** as donuts with real logos and a version drill-down.
+- **Languages** and **campaigns** (the campaigns card stays hidden until there is data).
 
-1. Visit **[abhishekhsingh.github.io/goatcounter-dashboard](https://abhishekhsingh.github.io/goatcounter-dashboard)**.
-2. Enter your GoatCounter URL (e.g. `https://yoursite.goatcounter.com`) and an API key, or click **Try Demo** to explore with realistic sample data, no account needed.
-3. That's it, your dashboard is live.
+**Built to be used**
+- **Command palette** (press `/` or Ctrl or Cmd + K) and keyboard shortcuts for ranges and designs.
+- **Recap image**: a shareable 1080 x 1350 card made in your browser. Counts under 5 are left out so small numbers stay private.
+- **Honest numbers**: GoatCounter counts visitors, so that is what is shown. Days and hours follow your site's time zone. A comparison is hidden when the earlier period has too little data.
+- **Accessible**: keyboard operable, screen-reader labels, reduced motion respected, axe clean in both designs and both modes.
+- **Private**: no analytics, no third-party requests (fonts and libraries are self-hosted), and your key is only ever sent to your own GoatCounter site.
 
-## 🏠 Self-Hosting
+## 🖼️ Screenshots
 
-You don't need to trust someone else's hosting. Run your own copy in two minutes:
+Both designs, dark and light:
 
-1. **Fork** this repo (or just download `index.html`).
-2. Enable **GitHub Pages** for the repo (Settings > Pages > Source: `main` branch, root).
-3. Visit `https://<your-username>.github.io/goatcounter-dashboard`. Done.
+![Nova and Classic, dark and light](assets/screenshots/looks.jpg)
 
-Or just drop `index.html` into any static host (Netlify, Cloudflare Pages, S3, your own server), there's no build step.
+The views:
 
-### Running locally
+![Globe, skyline and clock, calendar year, Sankey](assets/screenshots/features.jpg)
+
+On a phone:
+
+![The dashboard on a phone](assets/screenshots/mobile.jpg)
+
+The command palette and the recap image:
+
+![Command palette and recap image](assets/screenshots/tools.jpg)
+
+## 🚀 Quick start
+
+1. Open **[abhishekhsingh.github.io/goatcounter-dashboard](https://abhishekhsingh.github.io/goatcounter-dashboard)**.
+2. Enter your GoatCounter URL (for example `https://yoursite.goatcounter.com`) and an API key, or press **Try demo** to explore a seeded sample site.
+
+## 🏠 Self-hosting
+
+It is a folder of static files. Put it on any static host (GitHub Pages, Netlify, Cloudflare Pages, S3, your own server) and open it.
+
+1. **Fork** this repo, or download it.
+2. Turn on **GitHub Pages** (Settings, Pages, source `main`, root).
+3. Visit `https://<your-username>.github.io/goatcounter-dashboard`.
+
+To run it locally you need any static server, because browsers do not load ES modules from `file://`:
 
 ```bash
 git clone https://github.com/abhishekhsingh/goatcounter-dashboard.git
 cd goatcounter-dashboard
-# Open directly:
-open index.html
-# Or serve it with anything that serves static files:
 python3 -m http.server 8000
-# → visit http://localhost:8000
+# open http://localhost:8000
 ```
 
-## 🔑 Getting a GoatCounter API Key
+There is no build step and nothing to install.
 
-1. Log into your GoatCounter site.
+## 🔑 Getting a GoatCounter API key
+
+1. Log in to your GoatCounter site.
 2. Click your username in the top menu, then **API**.
-3. Under **Add new API Token**, enter a name and tick only the **Read statistics** permission. The dashboard does not need any other permission.
-4. Choose which sites the key can access, then click **Add new**.
-5. Copy the key and paste it into the connect screen.
+3. Under **Add new API Token**, name it and tick only **Read statistics**. That is the only permission the dashboard needs.
+4. Choose which sites the key can read, then **Add new**.
+5. Copy the key into the connect screen.
 
-## 📡 API Endpoints Used
+## ⌨️ Keyboard shortcuts
 
-This dashboard talks to GoatCounter's public REST API (`/api/v0`). Requests are strictly serialized client-side with a 500ms gap between completions so the wire rate (including unavoidable CORS preflights) stays around 2 req/sec, comfortably under GoatCounter's rate limit.
+| Key | Action |
+|---|---|
+| `/` or Ctrl/Cmd + K | Open the command palette |
+| `t` `w` `m` `q` `y` | Today, 7 days, 30 days, 90 days, 12 months |
+| `l` | Switch light and dark |
+| `n` | Switch Nova and Classic |
+| `r` | Share a recap image |
+| Arrow keys | Move along the main chart (when it has focus) |
 
-| Endpoint | Purpose | Tier |
-|----------|---------|------|
-| `GET /api/v0/me` | Verify connection on the connect screen | connect |
-| `GET /api/v0/stats/total` | Total-visitors KPI + previous-period total for trend | 1 (immediate) |
-| `GET /api/v0/stats/hits` | Traffic time-series + top pages list | 1 (immediate) |
-| `GET /api/v0/stats/hits/{path_id}` | Per-page referrer drill-down (on click) | on-demand |
-| `GET /api/v0/stats/browsers` | Browser donut chart | 2 (lazy) |
-| `GET /api/v0/stats/browsers/{id}` | Browser version drill-down (on click) | on-demand |
-| `GET /api/v0/stats/systems` | OS donut chart | 2 (lazy) |
-| `GET /api/v0/stats/systems/{id}` | OS version drill-down (on click) | on-demand |
-| `GET /api/v0/stats/sizes` | Device breakdown | 2 (lazy) |
-| `GET /api/v0/stats/sizes/{id}` | Device size drill-down (on click) | on-demand |
-| `GET /api/v0/stats/locations` | Countries chart | 3 (lazy) |
-| `GET /api/v0/stats/locations/{id}` | Country region drill-down (on click) | on-demand |
-| `GET /api/v0/stats/languages` | Languages chart | 1 (immediate) |
-| `GET /api/v0/stats/campaigns` | Campaigns table (when present) | 4 (lazy) |
-| `GET /api/v0/stats/campaigns/{id}` | Campaign referrer drill-down (on click) | on-demand |
+Shortcuts are ignored while you type in a field.
 
-**Tiering:** Tier 1 fires on initial load: a warm-up call to `/me`, then `total`, `hits` and `languages`, then the previous-period `total` for the trend arrow. That is 5 requests. Tiers 2/3/4 lazy-fetch via `IntersectionObserver` when their section enters the viewport, so the initial load stays at 5 requests regardless of how many breakdowns the dashboard renders.
+## 💾 How "Remember my choice" works
 
-**Caching:** every successful response is cached in `localStorage` for 60 seconds keyed by `(baseURL, endpoint, params)`. Refresh in the settings menu clears the cache and forces a fresh fetch; Disconnect wipes both the cache and stored credentials.
+A new visit always opens in Nova dark. A change of design or mode lasts for the tab (it survives reloads). Only if you turn on **Remember my choice** in the Appearance panel is it kept for later visits. Choices saved by older versions are ignored.
 
-**Demo mode** bypasses all of the above. The dashboard renders from in-memory sample fixtures: zero requests, zero localStorage writes, zero rate-limit interaction.
+## ⚡ Performance
 
-## 🛠️ Tech Stack
+Measured in Chromium on a throttled phone profile (4x CPU slowdown, 1.6 Mbps, 150 ms round trip), served over HTTP/2 with gzip:
 
-Five scripts loaded from unpkg, in the order the page needs them:
+| | Before the rewrite | Now |
+|---|---|---|
+| Transferred on first load | about 970 KB | about 130 KB |
+| Connect screen usable | 6.4 s | 1.0 s |
+| Total blocking time | about 880 ms | about 115 ms |
 
-- **React 18** + **ReactDOM 18** (UMD)
-- **prop-types 15** (UMD): required at runtime by Recharts' UMD build. Recharts treats `PropTypes` as an external global; without this script tag the chart layer crashes during init.
-- **Recharts 2:** area chart for traffic, donut charts for browsers/OS/devices, horizontal bar lists for countries and languages
-- **Babel Standalone:** in-browser JSX compilation
+The old version compiled React and Recharts in the browser through Babel. The current one uses native ES modules and a 7 KB UI library, with the heavy parts (globe, logos, recap fonts) loaded only when needed.
 
-Plus:
+## 📡 API endpoints used
 
-- **Inter** + **JetBrains Mono** from Google Fonts
-- Plain CSS with custom properties for theming, no Tailwind, no preprocessor, no bundler
-- One generated static asset: `assets/world-map.js`, country path data for the choropleth, regenerated only when the underlying dataset changes via `scripts/build-world-map.js`
+The dashboard talks to GoatCounter's read-only REST API (`/api/v0`) with a Bearer key.
 
-The dashboard itself is a single `index.html`. No runtime build step.
+| Endpoint | Used for |
+|---|---|
+| `GET /me` | Check the connection, read the account time zone |
+| `GET /stats/total` | Visitors, the chart, the hour and weekday patterns, the calendar year |
+| `GET /stats/hits` | Top pages and their daily series |
+| `GET /stats/hits/{path_id}` | Where one page's visitors came from (on click) |
+| `GET /stats/toprefs` and `/{id}` | Referrers, and the pages each referrer sends traffic to |
+| `GET /stats/browsers`, `systems` (and `/{id}`) | Donuts, with versions on click |
+| `GET /stats/sizes` | Devices |
+| `GET /stats/locations` (and `/{id}`) | Countries, with regions on click |
+| `GET /stats/languages` | Languages |
+| `GET /stats/campaigns` (and `/{id}`) | Campaigns, shown only when there are some |
 
-## 📊 Project Status
+**Request budget.** After connecting, the first screen needs five requests: `/me`, the current and previous `total`, `hits` and `toprefs`. Every other card loads when it scrolls near the viewport. The Sankey traces six referrers one at a time.
 
-Working today:
+**Rate limit.** GoatCounter allows 4 requests per second. Requests go out one at a time with a short gap, and the client follows the `X-Rate-Limit-*` headers when the browser can read them. A 429 or a network hiccup retries with a back-off, and each card has its own Retry button.
 
-- Connect / disconnect with persisted credentials
-- Demo mode with realistic sample data (no account needed)
-- All the GoatCounter stats endpoints the dashboard needs (total, hits, browsers, systems, sizes, locations, languages, campaigns) plus per-item drill-downs
-- Period-over-period trend on the visitors KPI
-- Drill-down on every card: pages (referrers), browsers/OS/devices (versions), countries (regions), campaigns (referrer URLs)
-- Choropleth world map with hover tooltips (sqrt color scale)
-- Dark / light theme with system-preference default
-- Today / 7d / 30d / 90d / Custom date ranges
-- Strict-sequential rate-limited request queue
-- 60-second `localStorage` response cache
-- Lazy-loaded breakdowns via `IntersectionObserver`
-- Per-card retry button on failed endpoints
-- "Loading X of Y..." / "Updated Xs ago" freshness indicator
-- Skeleton loading states, fault-tolerant error handling
+**Caching.** Answers are cached in IndexedDB. A range that includes today counts as fresh for 60 seconds. A range that ended earlier counts as fresh for 6 hours. An older copy is shown instantly while a fresh one loads. Disconnect clears the cache for that site.
 
-Ideas for the future: CSV export, multi-site switcher, real-time mode, stale-while-revalidate cache.
+**Time zones.** Days and hours are computed in the time zone GoatCounter reports for your account, falling back to your browser's.
+
+## 🔒 Privacy and storage
+
+The dashboard sends nothing anywhere except your own GoatCounter instance. Nothing is loaded from a CDN or from Google Fonts.
+
+| Where | Key | What |
+|---|---|---|
+| localStorage | `gc-dashboard-config-v1` | Your GoatCounter URL and API key (removed on Disconnect) |
+| localStorage | `gc-dashboard-range-v2` | Your last date range |
+| localStorage | `gc-dashboard-goal-v1:<site>` | Your monthly goal |
+| localStorage | `gc-dashboard-pref` | Design and mode, only if you tick Remember my choice |
+| sessionStorage | `gc-dashboard-session` | Design and mode for this tab |
+| IndexedDB | `gc-dashboard` | Cached API answers |
+
+Use an `https://` URL for your GoatCounter site. The connect form adds `https://` when you leave the scheme off but does not block a typed `http://`.
+
+## 🌐 Browser support
+
+You need a browser with ES modules, import maps and the popover attribute: **Chrome or Edge 114+, Firefox 125+, Safari 17+**. The globe needs WebGL and falls back to the flat map without it. The scroll and view-transition effects are optional and degrade quietly.
+
+**Tested:** Chromium (the engine behind Chrome and Edge) and WebKit (the engine behind Safari), through Playwright, at 13 screen sizes from a 280px foldable to a 2560px ultrawide, in both designs and both modes, with keyboard, palette and recap checks. **Not tested yet:** Firefox, and real phones or real Safari.
+
+## 🛠️ Tech
+
+No framework build and no bundler. Everything is plain files served as they are.
+
+| Piece | Version | Licence | Where |
+|---|---|---|---|
+| [Preact](https://preactjs.com/) + hooks | 10.25.4 | MIT | `vendor/` |
+| [htm](https://github.com/developit/htm) (JSX-like templates, no compile) | 3.1.1 | Apache-2.0 | `vendor/` |
+| [cobe](https://github.com/shuding/cobe) (WebGL globe) and its dependency phenomenon | 0.6.3, 1.6.0 | MIT | `vendor/`, loaded lazily |
+| Space Grotesk, Inter, JetBrains Mono | variable, Latin | SIL OFL | `fonts/` |
+| Browser and system logos | [Simple Icons](https://simpleicons.org/) | CC0 | `js/icons.js` |
+| Country shapes | Natural Earth 110m via world-atlas | Public domain | `assets/world-map.js` |
+
+Browser and system logos are trademarks of their owners. They are shown unaltered, only to identify the software, and imply no endorsement.
+
+How the code is organised, how to update the vendored libraries and how the two designs work are in [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## 🤝 Contributing
 
-PRs welcome. For most changes the flow is:
+PRs are welcome. The flow for most changes:
 
 1. Fork and clone.
-2. Edit `index.html`.
-3. Open it in a browser to test.
-4. Open a PR.
+2. Run `python3 -m http.server 8000` and open the demo.
+3. Edit the files under `js/` and `css/`, and reload.
+4. Open a PR against `dev`.
 
-The only piece of the repo that needs Node is `scripts/`, which regenerates `assets/world-map.js` from pinned source data. You only run it when the country dataset itself needs updating; see [`scripts/README.md`](scripts/README.md) for the recipe. Touching the dashboard never requires it.
+Only `scripts/` needs Node, and only to regenerate the world map; see [scripts/README.md](scripts/README.md).
 
 ### Project rules
 
-These keep the dashboard simple and trustworthy. PRs that violate them are unlikely to be merged:
+- **No build step.** Source files are what the browser runs. Libraries are vendored in `vendor/` with their licences, not loaded from a CDN.
+- **No analytics, telemetry or tracking.** It must not phone home.
+- **No backend.** No proxy, serverless function or edge worker. Everything runs in the browser against the GoatCounter API.
+- **Credentials stay local** and go only to the user's GoatCounter site. Never log or send a key anywhere else.
+- **Stay deployable on GitHub Pages** and any other static host.
+- **Keep the first load small.** The budget is about 200 KB gzip for the first screen. Heavy features load lazily and pause when offscreen.
+- **Respect accessibility.** Keyboard access, labels, contrast and reduced motion. New views need a text equivalent.
+- **Match the style.** Preact function components with htm templates, CSS custom properties for every colour, and each design in its own stylesheet.
+- **New dependencies need a strong reason** and an issue first.
 
-- **No runtime build step.** The dashboard runs in the browser as-is. The single static asset that's "built" (`assets/world-map.js`) is regenerated only when the underlying country dataset needs updating, via `scripts/build-world-map.js`. Routine code changes don't need npm. The dashboard itself never sees Node.
-- **No new runtime dependencies** beyond the five already loaded from a CDN (React, ReactDOM, prop-types, Recharts, Babel-standalone). `prop-types` looks unused if you grep the source, but Recharts' UMD build calls it during module init; removing the script tag silently breaks all charts. Adding another script tag needs a strong reason and an issue to discuss it first.
-- **No analytics, telemetry, or tracking.** This is a privacy-friendly dashboard for a privacy-friendly analytics tool, it cannot phone home. The only data requests go to the user's GoatCounter instance (fonts and scripts load from Google Fonts and unpkg).
-- **No backend.** No server-side proxy, no serverless function, no edge worker. Everything must run in the browser against the GoatCounter API directly.
-- **Credentials stay local.** API keys live in `localStorage` and are only sent to the user's GoatCounter site. Use an `https://` URL: the connect form adds `https://` when no scheme is given but does not block a typed `http://`. Never log keys, never send them anywhere else.
-- **Keep it deployable to GitHub Pages.** Anything that breaks plain static hosting (relative paths, framework conventions, etc.) is out of scope.
-- **Match the existing style.** Plain CSS with custom properties, no Tailwind / styled-components / CSS-in-JS. React function components with hooks. No class components.
-
-Bug reports and feature ideas: [GitHub Issues](https://github.com/abhishekhsingh/goatcounter-dashboard/issues).
+Bug reports and ideas: [GitHub Issues](https://github.com/abhishekhsingh/goatcounter-dashboard/issues).
 
 ## 🔧 Troubleshooting
 
-Having issues connecting? See the [Troubleshooting Guide](TROUBLESHOOTING.md).
+Having trouble connecting? See the [Troubleshooting guide](TROUBLESHOOTING.md).
 
 ## 📄 License
 
-MIT. See [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE). Vendored libraries and fonts keep their own licences, included beside them.
 
 ## Author
 
@@ -164,4 +214,4 @@ MIT. See [LICENSE](LICENSE).
 - Portfolio: [abhishekhsingh.github.io](https://abhishekhsingh.github.io)
 - GitHub: [@abhishekhsingh](https://github.com/abhishekhsingh)
 
-GoatCounter itself is built by [Martin Tournoij](https://github.com/arp242) and is great. Go [support the project](https://www.goatcounter.com/) if you find it useful.
+GoatCounter itself is built by [Martin Tournoij](https://github.com/arp242) and is great. Please [support the project](https://www.goatcounter.com/) if you find it useful.

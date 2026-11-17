@@ -2,7 +2,7 @@
 
 This guide covers the most common issues people run into when connecting the GoatCounter Dashboard to their analytics instance. If your problem isn't listed here, please [open an issue](https://github.com/abhishekhsingh/goatcounter-dashboard/issues).
 
-**Quick sanity check:** click **Try Demo** on the connect screen first. If the dashboard loads fine in demo mode but fails with your real credentials, the dashboard itself is working. The issue is between your browser and your GoatCounter instance. Work through the sections below.
+**Quick sanity check:** press **Try demo** on the connect screen first. If the dashboard loads fine in demo mode but fails with your real credentials, the dashboard itself is working. The issue is between your browser and your GoatCounter instance. Work through the sections below.
 
 ---
 
@@ -58,24 +58,26 @@ If a key was created without **Read statistics**, the connection test (`/api/v0/
 
 ---
 
-### "Not found: [endpoint]. Check that the URL points to your GoatCounter site (not a sub-path)."
+### "Not found (404) at [URL]"
 
-The dashboard reached a server, but it returned 404 for an API endpoint. This usually means the URL points to something that isn't a GoatCounter instance. Double-check you entered the right hostname.
+The dashboard reached a server, but it answered 404 for an API address. The message now says whether the answer looked like GoatCounter:
+
+- **"The server answered like GoatCounter, so check the URL"**: the host is right but the address is not, for example a typo in the site name.
+- **"The answer did not look like GoatCounter"**: something else answered, such as a corporate proxy, a DNS filter, a VPN, or a wrong host. Open the URL from the message in a new tab. If you see anything other than a GoatCounter error, that is the cause.
 
 ---
 
-### Connection works but some cards show "Failed to load" with a Retry button
+### Connection works but some cards show a message with a Retry button
 
-This is usually **rate limiting**. GoatCounter's API allows 4 requests per second by default (reported in the `X-Rate-Limit-*` response headers, and configurable on self-hosted instances). The dashboard handles this with a strict-sequential request queue and 500ms gaps between requests, but under certain conditions some requests can still get throttled:
+This is usually **rate limiting**. GoatCounter allows 4 requests per second by default (reported in the `X-Rate-Limit-*` response headers, and configurable on self-hosted instances). The dashboard sends one request at a time with a short gap, follows those headers when the browser can read them, and retries a 429 after the reset time. Some requests can still be throttled when:
 
-- Rapidly switching date ranges before the previous batch finishes
-- A slow or overloaded GoatCounter instance taking longer to respond
-- Self-hosted instances with a stricter rate limit configuration
+- You switch date ranges quickly, before the previous batch has finished.
+- A slow or busy GoatCounter instance takes longer to answer.
+- A self-hosted instance has a stricter limit.
 
 **What to do:**
-- Click the **Retry** button on each failed card. It retries just that one request, which usually succeeds once the rate limit bucket refills.
-- The dashboard shows a banner at the top listing which sections failed.
-- Responses are cached for 60 seconds, so switching back to a date range you just viewed won't trigger new API calls.
+- Press **Retry** on the card. It retries only that request and usually works once the limit refills.
+- Answers are cached, so going back to a range you just viewed makes no new requests.
 
 ---
 
@@ -135,78 +137,97 @@ Self-hosted instances can adjust rate limits with the `-ratelimit` flag on `goat
 
 ### Traffic chart shows wrong timezone / shifted hours
 
-GoatCounter returns hourly data bucketed in your *site's* configured timezone, not UTC. The dashboard passes this data through as-is. If hours look shifted, check the timezone in your site's settings in GoatCounter. The browser, system and similar breakdowns are always in UTC.
+GoatCounter buckets days and hours in your *site's* time zone, not UTC. The dashboard computes its ranges in the time zone GoatCounter reports for your account, and falls back to your browser's if it does not report one. If hours look shifted, check the time zone in your GoatCounter settings. The browser, system and similar breakdowns are always in UTC.
 
-### World map doesn't show small countries (Singapore, Monaco, Vatican, etc.)
+### Small countries are missing from the map or the globe
 
-The choropleth uses Natural Earth 110m resolution for fast loading. Microstate boundaries don't exist at this scale. These countries still appear in the **country list** below the map with their flag and visitor count.
+The map uses Natural Earth 110m shapes for fast loading, and the globe puts a marker at the centre of each country's largest shape. Microstates (Singapore, Monaco, the Vatican and similar) have no shape at this scale, so they get no shading and no marker. They still appear in the country list with their flag and visitor count.
+
+### The globe is missing and I see a flat map
+
+The globe needs WebGL. If your browser has WebGL turned off, or the graphics driver is blocked, the dashboard switches to the flat map on its own. You can also choose **Map** with the Globe and Map buttons above it.
 
 ### Campaign card doesn't appear
 
-The campaigns card only renders when your GoatCounter instance has collected UTM-tagged traffic (`utm_source`, `utm_medium`, `utm_campaign`). If no campaign data exists, the card is intentionally hidden; it's not a bug.
+The campaigns card only appears when GoatCounter has recorded campaign traffic (for example `utm_source`, `utm_medium`, `utm_campaign`) in the range you chose. With none, it is hidden on purpose, and it is also hidden if your instance does not offer the campaigns endpoint.
 
-### Devices card shows "Unknown" for all entries
+### A card or the whole page shows fewer visitors than GoatCounter's own page
 
-This was a bug in earlier versions that has been fixed. If you still see it, clear your browser's localStorage for the dashboard domain. The dashboard caches API responses and the stale cached response may be the problem.
+GoatCounter counts **visitors**, and so does this dashboard. It does not show pageviews. Two things can make totals differ slightly from GoatCounter's page: the time zone used for the range, and events, which GoatCounter includes in its total.
 
-**How to clear:** Open Developer Tools (F12) → Application/Storage tab → Local Storage → delete all entries for the dashboard's domain. Or use the dashboard's **Refresh** button in the settings menu (gear icon, top right), which clears the response cache.
+### My weekday and hour pattern looks flat or says "Not enough traffic yet"
+
+The pattern uses the last 90 days and needs a few hundred visitors to be meaningful. It also shows typical values (medians), so a single busy day does not change it.
+
+### "Remember my choice" does not stick
+
+A new visit always opens in Nova dark. Your choice lasts for the tab. To keep it for later visits, open the Appearance panel (the palette icon) and turn on **Remember my choice**. If your browser blocks storage (private mode or strict privacy settings), nothing can be remembered.
+
+### The recap image has the wrong font or will not download
+
+The recap embeds its fonts so it looks the same everywhere. If the fonts cannot be fetched, it falls back to a system font. If **Download PNG** fails, try another browser. Counts under 5 are left out on purpose, so a small site may show fewer lines.
 
 ---
 
 ## Browser and Environment Issues
 
-### Dashboard looks broken or won't load at all
+### The page is blank, or the console says a module could not load
 
-The dashboard requires a modern browser with ES2020+ support:
+The dashboard uses ES modules, which browsers will not load from a `file://` address. Serve the folder instead:
+
+```bash
+python3 -m http.server 8000
+# then open http://localhost:8000
+```
+
+Also make sure your host sends `.js` files as JavaScript. All files in the repo use `.js` for that reason.
+
+### The dashboard looks broken in an older browser
+
+You need ES modules, import maps and the popover attribute:
 
 | Browser | Minimum version |
 |---------|----------------|
-| Chrome / Edge | 80+ |
-| Firefox | 78+ |
-| Safari | 13.1+ |
+| Chrome / Edge | 114+ |
+| Firefox | 125+ |
+| Safari | 17+ |
 
-Two decorative styles use `color-mix()` (Chrome 111+, Firefox 113+, Safari 16.2+). Older browsers skip those styles and the dashboard still works.
+Without popover support the **Appearance** button does nothing, but the command palette (`/`) and the shortcuts `l` (light or dark) and `n` (design) still work. A few decorative styles use `color-mix()`; older browsers skip them and the dashboard still works.
 
-If using **Brave**, Brave Shields may block GoatCounter domains by default, same issue as ad blockers. Disable shields for the dashboard page.
+If you use **Brave**, Brave Shields may block GoatCounter domains by default, which is the same issue as an ad blocker. Turn shields off for the dashboard page.
 
-### localStorage errors or credentials not persisting
+### Credentials or choices not persisting, or the cache not working
 
-The dashboard stores your credentials and response cache in `localStorage`. Some environments restrict this:
+The dashboard uses several kinds of browser storage (see the README for the list). Some environments restrict them:
 
-- **Private/incognito browsing:** some browsers limit or disable localStorage in private mode.
-- **Aggressive privacy settings:** certain Firefox configurations (`dom.storage.enabled = false`) disable it entirely.
-- **Storage quota exceeded:** extremely rare, but possible if localStorage is nearly full from other sites.
+- **Private or incognito windows** may limit or clear storage when the window closes.
+- **Strict privacy settings** can turn storage off. Firefox with `dom.storage.enabled = false` disables it entirely.
+- **Safari** may delete a site's storage after about 7 days without a visit, so you may need to reconnect.
 
-**Symptoms:** The dashboard may fail to save credentials (you have to re-enter them each visit) or fail to cache responses (every page load makes fresh API calls).
+If storage is unavailable the dashboard still works. It just cannot keep your key, your choices or its cache between visits.
 
-**Fix:** Try clearing localStorage for the dashboard domain, then reconnect. If localStorage is completely unavailable, the dashboard will still work, it just won't persist credentials or cache responses between page loads.
+**To reset everything:** use **Disconnect** (this clears the key and the cache for that site). For a full reset, clear site data for the dashboard's address in your browser's settings.
 
-### Demo mode works but real connection doesn't
+### Demo mode works but a real connection does not
 
-This confirms the dashboard code is working correctly. Demo mode uses in-memory sample data and makes zero network requests. The issue is between your browser and your GoatCounter instance. Work through the [Connection Issues](#connection-issues) section above.
+Demo mode uses made-up data and makes no network requests, so this means the dashboard is fine. The problem is between your browser and your GoatCounter instance. Work through [Connection Issues](#connection-issues).
 
 ---
 
 ## Performance
 
-### Dashboard loads slowly on first visit
+### The dashboard loads slowly on the first visit
 
-The initial load makes up to 10 API calls spread across 4 tiers (plus one more on the connect screen):
-1. **Tier 1 (immediate):** a warm-up call to `/me`, then Total visitors, Top pages and traffic chart, and Languages, 4 requests, plus 1 request for the previous-period total (trend arrow)
-2. **Tier 2 (scroll):** Browsers, OS, Devices, 3 requests
-3. **Tier 3 (scroll):** Countries, 1 request
-4. **Tier 4 (scroll):** Campaigns, 1 request
+After you connect, the first screen needs five requests: a connection check (`/me`), the current and previous `total`, `hits` and `toprefs`. Every other card loads when it scrolls near the viewport. The **Where visitors go next** card traces six referrers one at a time, so it can take a couple of seconds on a busy site. Because requests go out one at a time to respect GoatCounter's limit, a slow or busy GoatCounter instance is the usual reason for a slow first load.
 
-Tiers 2-4 only fire when their cards scroll into view (`IntersectionObserver`), so the initial visible load is 5 requests. On slow connections or heavily loaded GoatCounter instances, the full load can take 15-30 seconds.
-
-Subsequent interactions are faster thanks to the 60-second response cache.
+Later visits are faster. Answers are cached in your browser (60 seconds for a range that includes today, 6 hours for older ranges), and an older copy is shown immediately while a fresh one loads.
 
 ### Persistent rate limit errors (429)
 
-The dashboard's built-in rate handling (strict-sequential queue, 500ms gap between completions, exponential backoff on 429s) is designed to stay comfortably under GoatCounter's default rate limit. If you still hit 429s consistently:
+The dashboard stays under GoatCounter's default limit by sending one request at a time and following the rate-limit headers. If you still see 429s:
 
-- **Hosted GoatCounter:** You may be sharing the rate limit with other API clients or integrations hitting the same site. Space out your usage.
-- **Self-hosted:** Increase the rate limit with the `-ratelimit` flag on `goatcounter serve`.
+- **Hosted GoatCounter:** the limit may be shared with other API clients using the same site. Space out your usage.
+- **Self-hosted:** raise the limit with the `-ratelimit` flag on `goatcounter serve`.
 
 ---
 
