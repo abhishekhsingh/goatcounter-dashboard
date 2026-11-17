@@ -93,7 +93,7 @@ export function StatStrip({ cur, prev, avg, avgPrev, peak, topPage, topRef, seri
     <div class="card kpi">${G}<div class="l">Visitors</div><div class="v">${cur === null ? html`<${Skeleton} h=${26} w="70%" />` : html`<${Num} value=${cur} />`}</div><div class="s">${pct === null ? 'no earlier data to compare' : html`<${Delta} pct=${pct} /> vs previous`}</div><${Sparkline} values=${vals} w=${120} label="visitors trend" /></div>
     <div class="card kpi">${G}<div class="l">${hourly ? 'Per hour' : 'Per day'}</div><div class="v">${avg === null ? html`<${Skeleton} h=${26} w="60%" />` : html`<${Num} value=${Math.round(avg)} />`}</div><div class="s">${apct === null ? 'average' : html`<${Delta} pct=${apct} /> average`}</div></div>
     <div class="card kpi">${G}<div class="l">${hourly ? 'Peak hour' : 'Peak day'}</div><div class="v">${peak ? html`<${Num} value=${peak.v} />` : html`<${Skeleton} h=${26} w="50%" />`}</div><div class="s">${peak ? peak.label : ''}</div></div>
-    <div class="card kpi">${G}<div class="l">Top page</div>${topPage ? html`<div class="v path" title=${topPage.path}>${topPage.path}</div><div class="s">${fmtNum(topPage.count)} visitors</div>` : html`<div class="v"><${Skeleton} h=${22} w="80%" /></div>`}</div>
+    <div class="card kpi">${G}<div class="l">Top page</div>${topPage ? html`<div class="v path" title=${topPage.path}>${topPage.path}</div><div class="s">${fmtNum(topPage.count)} visitors</div>` : topPage === false ? html`<div class="v path">None yet</div>` : html`<div class="v"><${Skeleton} h=${22} w="80%" /></div>`}</div>
     <div class="card kpi">${G}<div class="l">Top referrer</div>${topRef ? html`<div class="v path" title=${topRef.name}>${topRef.name}</div><div class="s">${fmtNum(topRef.count)} visitors</div>` : topRef === false ? html`<div class="v path">None yet</div>` : html`<div class="v"><${Skeleton} h=${22} w="80%" /></div>`}</div>
   </section>`;
 }
@@ -121,6 +121,10 @@ function centroids(paths) {
   return out;
 }
 
+// The globe's one canvas, for the whole page. Only one Countries card exists at a time, and a graphics context is not freed when its canvas is dropped, only when the
+// garbage collector gets round to it. Browsers allow about 16 and then evict the OLDEST, which is the background shader, so a fresh canvas per card or per scroll leaks them.
+let globeCanvas = null;
+
 // Countries: a WebGL globe (Nova) or a choropleth map beside the ranked list. Hovering a row lights its country.
 export function CountriesCard({ api, range, ttl, look, theme }) {
   const [ref, seen] = useInView();
@@ -146,6 +150,7 @@ export function CountriesCard({ api, range, ttl, look, theme }) {
   }, [rows, mapReady]);
   const maxMap = Math.max(1, ...[...byCode.values()].map((v) => v.count));
   const paths = typeof window !== 'undefined' ? window.WORLD_MAP_PATHS : null;
+  const mapFailed = mapReady && !paths; // the map file could not be fetched (offline, or blocked): say so instead of leaving a blank space
   const cent = useMemo(() => (mapReady && paths ? centroids(paths) : null), [mapReady]);
 
   // the globe: created when visible, destroyed when scrolled away or when the look changes.
@@ -157,7 +162,7 @@ export function CountriesCard({ api, range, ttl, look, theme }) {
     const top = ranked[0];
     const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
     let dead = false, g = null, phi = top ? (-(cent[top[0]][1] + 90) * Math.PI) / 180 : 0.6, drag = null, off = 0, dirty = true;
-    const host = box.current, canvas = document.createElement('canvas'), over = document.createElement('canvas');
+    const host = box.current, canvas = globeCanvas || (globeCanvas = document.createElement('canvas')), over = document.createElement('canvas');
     canvas.id = 'globe'; canvas.setAttribute('role', 'img'); canvas.setAttribute('aria-label', 'Globe with markers for visitor countries. The list beside it has the same data.');
     over.className = 'globe-over'; over.setAttribute('aria-hidden', 'true');
     host.replaceChildren(canvas, over);
@@ -243,7 +248,7 @@ export function CountriesCard({ api, range, ttl, look, theme }) {
     <div class="geo">
       <div class="map-wrap" ref=${wrap}>
         ${look === 'nova' ? html`<div class="seg-tabs" role="group" aria-label="Map style"><button type="button" aria-pressed=${String(view === 'globe')} onClick=${() => setView('globe')}>Globe</button><button type="button" aria-pressed=${String(view === 'map')} onClick=${() => setView('map')}>Map</button></div>` : null}
-        ${view === 'globe' ? html`<div class="globe-box" ref=${box}></div><p class="globe-note" aria-hidden="true">Arcs link your top country to the next seven. Drag to turn the globe.</p>` :
+        ${mapFailed ? html`<div class="empty">The globe and map could not load. Check your connection and reload the page. The list beside it has the same data.</div>` : view === 'globe' ? html`<div class="globe-box" ref=${box}></div><p class="globe-note" aria-hidden="true">Arcs link your top country to the next seven. Drag to turn the globe.</p>` :
           paths ? html`<svg class="map" viewBox=${window.WORLD_MAP_VIEWBOX || '0 0 1000 500'} preserveAspectRatio="xMidYMid meet" role="img" aria-label="World map shaded by visitors" onMouseMove=${onMove} onMouseLeave=${() => { setTip(null); setHot(null); }}>
           ${Object.keys(paths).map((code) => { const e = byCode.get(code); return html`<path key=${code} d=${paths[code]} data-code=${code} data-has=${e ? '1' : '0'} class=${code === hot ? 'hot' : ''} fill-opacity=${e ? 0.22 + 0.78 * Math.sqrt(e.count / maxMap) : 1} />`; })}</svg>` : html`<${Skeleton} h=${260} r="12px" />`}
         ${tip && view === 'map' ? html`<div class="tip" style=${{ left: Math.max(4, Math.min(tip.x + 14, (wrap.current ? wrap.current.clientWidth : 800) - 190)) + 'px', top: Math.max(4, tip.y - 56) + 'px', minWidth: '150px' }}><b>${flagFor(tip.name)} ${tip.name}</b><div class="v">${fmtFull(tip.count)}</div><div class="p">${shareOf(tip.count, total).toFixed(1)}% of visitors</div></div>` : null}

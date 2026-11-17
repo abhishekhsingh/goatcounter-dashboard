@@ -63,6 +63,8 @@ export function App() {
   const [booting, setBooting] = useState(!!read(CFG_KEY));
   const [initialError, setInitialError] = useState('');
   const [switching, setSwitching] = useState(false);
+  const [notice, setNotice] = useState(''); // why a site switch did not happen
+  useEffect(() => { if (!notice) return; const t = setTimeout(() => setNotice(''), 7000); return () => clearTimeout(t); }, [notice]);
   const [theme, toggleTheme] = useTheme();
   const [look, chooseLook] = useLook();
   const pool = useRef(new Map()); // one client per site address
@@ -125,6 +127,8 @@ export function App() {
       const api = await open(site, session.key);
       setSession((p) => ({ ...p, api }));
       if (!session.demo) write(SITE_KEY, site.url);
+    } catch (e) {
+      setNotice(e.kind === 'auth' ? `This key cannot read ${site.name}. It may be missing the Read statistics permission for that site.` : e.kind === 'network' ? e.message : `Could not open ${site.name}. ${e.message}`);
     } finally { setSwitching(false); }
   };
   const disconnect = () => { pool.current.forEach((a) => a.clearCache()); pool.current.clear(); kit.current = null; write(CFG_KEY, null); write(SITE_KEY, null); setSession(null); setInitialError(''); };
@@ -132,7 +136,7 @@ export function App() {
 
   if (booting) return html`<div class="connect" aria-busy="true"><div class="card"><${Skeleton} h=${28} w="60%" /><div style="height:14px"></div><${Skeleton} h=${14} /><div style="height:10px"></div><${Skeleton} h=${14} w="80%" /></div></div>`;
   if (!session) return html`<${ConnectScreen} onConnect=${connect} onDemo=${demo} initialError=${initialError} />`;
-  return html`<${Ctx.Provider} value=${{ onAuthError, look }}><${Dashboard} key=${session.api.baseURL} api=${session.api} demo=${session.demo} sites=${session.sites} onSite=${switchSite} switching=${switching} theme=${theme} look=${look} onLook=${chooseLook} onTheme=${toggleTheme} onDisconnect=${disconnect} /><//>`;
+  return html`<${Ctx.Provider} value=${{ onAuthError, look }}><${Dashboard} key=${session.api.baseURL} api=${session.api} demo=${session.demo} sites=${session.sites} onSite=${switchSite} switching=${switching} theme=${theme} look=${look} onLook=${chooseLook} onTheme=${toggleTheme} onDisconnect=${disconnect} /><//><div class=${'toast' + (notice ? ' on' : '')} role="status" aria-live="polite">${notice}</div>`;
 }
 
 function AppearancePanel({ look, onLook }) {
@@ -216,14 +220,14 @@ function Dashboard({ api: baseApi, demo, sites = [], onSite, switching, theme, l
   const avg = series.length && total.data ? (done.length ? sum(done) / done.length : sum(series)) : null;
   const avgPrev = prevSeries.length ? sum(prevSeries) / prevSeries.length : null;
   const peak = done.length ? done.reduce((a, p) => (p.v > a.v ? p : a), done[0]) : null;
-  const topPage = hits.data && hits.data.hits && hits.data.hits[0] ? hits.data.hits[0] : null;
+  const topPage = hits.data && hits.data.hits ? (hits.data.hits[0] || false) : null; // null while loading, false when the site has no pages yet
   const refRows = refs.data && refs.data.stats ? refs.data.stats.filter((r) => r.name) : null;
   const topRef = refRows ? (refRows[0] || false) : null;
   const insights = useMemo(() => (total.data && prevTotal.data ? buildInsights({ total: total.data, series, prevSeries, prevTotal: hasPrev ? prev : 0, range, hits: hits.data && hits.data.hits, now, tz }) : null), [total.data, prevTotal.data, hits.data, series]);
   const hp = hover !== null ? series[hover] : null;
   const bigValue = useTicker(hp ? hp.v || 0 : cur, { instant: !!hp });
   const pct = hasPrev && prev > 0 && cur !== null ? ((cur - prev) / prev) * 100 : null;
-  const rangeLabel = range.days === 1 ? labelDay(range.from, true) : `${labelDay(range.from)} to ${labelDay(range.to, true)}`;
+  const rangeLabel = range.days === 1 ? labelDay(range.from, true) : `${labelDay(range.from, range.from.slice(0, 4) !== range.to.slice(0, 4))} to ${labelDay(range.to, true)}`; // the start shows its year when the range crosses a year
   const updated = relativeTime(Date.now());
   void updated;
   const siteName = demo ? ((sites.find((x) => x.url === baseApi.baseURL) || {}).name || 'Demo site') : baseApi.baseURL.replace(/^https?:\/\//, '');
