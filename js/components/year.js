@@ -76,7 +76,7 @@ export function YearCard({ api, tz, now, look }) {
           <div><b class="num">${calc.cur}</b><span>day streak now</span></div>
           <div><b class="num">${calc.longest}</b><span>longest streak</span></div>
           <div><b class="num">${calc.active}</b><span>active days of ${calc.days}</span></div>
-          <div><b class="num">${fmtNum(calc.best.v)}</b><span>best day, ${labelDay(calc.best.d)}</span></div>
+          <div><b class="num">${fmtNum(calc.best.v)}</b><span>best day, ${labelDay(calc.best.d, calc.best.d.slice(0, 4) !== now.toISOString().slice(0, 4))}</span></div>
         </div>
       </div>
       <div class="goal">
