@@ -25,3 +25,15 @@ export function useTilt(ref, enabled) {
 
 export const hexToRgb = (h) => { const n = parseInt(String(h).trim().replace('#', '').slice(0, 6), 16) || 0; return [(n >> 16) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255]; };
 export const cssVar = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+// Tells the card under the mouse where the pointer is, for the glow that follows the cursor (see nova.css). One frame at a time, one card at a time.
+export function installPointerFX() {
+  if (!canTilt()) return;
+  let card = null, x = 0, y = 0, raf = 0;
+  const apply = () => { raf = 0; if (!card) return; const r = card.getBoundingClientRect(); card.style.setProperty('--sx', x - r.left + 'px'); card.style.setProperty('--sy', y - r.top + 'px'); };
+  document.addEventListener('pointermove', (e) => {
+    if (e.pointerType !== 'mouse') return;
+    card = e.target.closest && e.target.closest('.card'); x = e.clientX; y = e.clientY;
+    if (card && !raf) raf = requestAnimationFrame(apply);
+  }, { passive: true });
+}

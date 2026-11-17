@@ -5,6 +5,7 @@ import { makeRange, hourLabel, fmtFull } from '../util.js';
 const fmtAvg = (v) => (v >= 10 ? fmtFull(v) : String(Math.round(v * 10) / 10)); // light sites have fractions of a visitor per hour
 import { hourWeekday } from '../model.js';
 import { hexToRgb, cssVar } from '../fx.js';
+import { Ridgeline } from './ridgeline.js';
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const mix = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
@@ -20,12 +21,13 @@ function Skyline({ m, n, themeKey, onNote }) {
     const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
     S.born = performance.now(); let raf = 0, last = 0;
     const draw = (now) => {
-      const W = canvas.clientWidth, H = Math.max(220, Math.round(W * (W < 600 ? 0.62 : 0.34))), dpr = Math.min(2, devicePixelRatio || 1);
+      const W = canvas.clientWidth, H = Math.max(W < 600 ? 220 : 300, Math.round(W * (W < 600 ? 0.62 : 0.4))), dpr = Math.min(2, devicePixelRatio || 1);
       if (canvas.width !== Math.round(W * dpr) || canvas.height !== Math.round(H * dpr)) { canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr); canvas.style.height = H + 'px'; }
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, W, H);
       const cols = 24, rows = 7, left = W < 600 ? 30 : 46, dX = W < 600 ? 5 : 9, dY = W < 600 ? 8 : 15, gapY = W < 600 ? 15 : 30, cw = (W - left - 16 - rows * 8) / cols, bw = cw * 0.66;
       const lo = hexToRgb(cssVar('--accent-2')), hi = hexToRgb(cssVar('--accent')), top = hexToRgb(cssVar('--hot'));
-      const mx = Math.max(1, ...m.flat()), maxH = H * 0.42, t = reduced ? 9 : (now - S.born) / 1000;
+      const mx = Math.max(1, ...m.flat()), maxH = Math.min(H * 0.42, H - 30 - (rows - 1) * gapY - dY - 10), t = // the tallest tower in the back row must still fit under the top edge
+         reduced ? 9 : (now - S.born) / 1000;
       const text3 = cssVar('--text-3');
       S.boxes = [];
       for (let r = 0; r < rows; r++) {
@@ -105,6 +107,7 @@ export function TimePatterns({ api, tz, look, theme, now }) {
         <div class="pat-main">${look === 'nova' ? html`<${Skyline} m=${hw.m} n=${hw.n} themeKey=${look + theme} onNote=${setNote} />` : html`<${HeatGrid} m=${hw.m} n=${hw.n} onNote=${setNote} />`}</div>
         <div class="pat-clock"><${HourClock} m=${hw.m} onNote=${setNote} /></div>
       </div>
-      <div class="sky-note" aria-live="polite">${note}</div>`}
+      <div class="sky-note" aria-live="polite">${note}</div>
+      <${Ridgeline} total=${data} look=${look} theme=${theme} />`}
   </section>`;
 }
