@@ -14,6 +14,9 @@ An open-source dashboard for [GoatCounter](https://www.goatcounter.com/) analyti
 - Both come in dark and light. A new visit always opens in **Nova dark**. Your choice lasts for the tab, and you can tick **Remember my choice** to keep it for next time.
 
 **Views**
+- **Section rail**: a numbered rail on the left of wide screens (five sections: Overview, Traffic, Audience, Rhythm, Tech). The current section is underlined and named, and a click scrolls to it.
+- **All your sites**: one key can open every site of your account. Pick a site from the name under the title (or press `s`), and your choice is remembered. It needs the **Read sites** permission; without it you see the one site the key was made for.
+- **One page at a time**: open a page in Top pages and choose **Show only this page**. Every card narrows to that page until you press **Show all pages**.
 - **Visitors over time**: a line that draws itself, a ghost line for the previous period, a dashed live edge, annotated spikes, and a crosshair that follows the pointer, touch or arrow keys. Click a day to zoom into its 24 hours.
 - **Highlights**: plain sentences generated from your numbers, for example "Sunday is your strongest day".
 - **Stat cards**: visitors, per day, peak, top page and top referrer, with trend chips and sparklines.
@@ -47,6 +50,10 @@ On a phone:
 
 ![The dashboard on a phone](assets/screenshots/mobile.jpg)
 
+Switching sites and narrowing to one page, with the section rail on the left:
+
+![Site switcher, page filter and section rail](assets/screenshots/sites.jpg)
+
 The command palette and the recap image:
 
 ![Command palette and recap image](assets/screenshots/tools.jpg)
@@ -79,7 +86,7 @@ There is no build step and nothing to install.
 
 1. Log in to your GoatCounter site.
 2. Click your username in the top menu, then **API**.
-3. Under **Add new API Token**, name it and tick only **Read statistics**. That is the only permission the dashboard needs.
+3. Under **Add new API Token**, name it and tick **Read statistics**. Also tick **Read sites** if you want to switch between the sites of your account. Nothing else is needed.
 4. Choose which sites the key can read, then **Add new**.
 5. Copy the key into the connect screen.
 
@@ -91,6 +98,7 @@ There is no build step and nothing to install.
 | `t` `w` `m` `q` `y` | Today, 7 days, 30 days, 90 days, 12 months |
 | `l` | Switch light and dark |
 | `n` | Switch Nova and Classic |
+| `s` | Switch site (when your key can read more than one) |
 | `r` | Share a recap image |
 | `Shift` + `R` | Refresh data (clears this site's cache and fetches everything again) |
 | Arrow keys | Move along the main chart (when it has focus) |
@@ -120,6 +128,7 @@ The dashboard talks to GoatCounter's read-only REST API (`/api/v0`) with a Beare
 | Endpoint | Used for |
 |---|---|
 | `GET /me` | Check the connection, read the account time zone |
+| `GET /sites` | The sites of your account, for the site switcher (needs Read sites) |
 | `GET /stats/total` | Visitors, the chart, the hour and weekday patterns, the calendar year |
 | `GET /stats/hits` | Top pages and their daily series |
 | `GET /stats/hits/{path_id}` | Where one page's visitors came from (on click) |
@@ -129,6 +138,8 @@ The dashboard talks to GoatCounter's read-only REST API (`/api/v0`) with a Beare
 | `GET /stats/locations` (and `/{id}`) | Countries, with regions on click |
 | `GET /stats/languages` | Languages |
 | `GET /stats/campaigns` (and `/{id}`) | Campaigns, shown only when there are some |
+
+**Pages.** Narrowing to one page adds `include_paths=<page id>` to every statistics request, so each card shows that page alone.
 
 **Request budget.** After connecting, the first screen needs five requests: `/me`, the current and previous `total`, `hits` and `toprefs`. Every other card loads when it scrolls near the viewport. The Sankey traces six referrers one at a time.
 
@@ -147,6 +158,7 @@ The dashboard sends nothing anywhere except your own GoatCounter instance. Nothi
 | localStorage | `gc-dashboard-config-v1` | Your GoatCounter URL and API key (removed on Disconnect) |
 | localStorage | `gc-dashboard-range-v2` | Your last date range |
 | localStorage | `gc-dashboard-goal-v1:<site>` | Your monthly goal |
+| localStorage | `gc-dashboard-site-v1` | The site you had open (only when you use more than one) |
 | localStorage | `gc-dashboard-pref` | Design and mode, only if you tick Remember my choice |
 | sessionStorage | `gc-dashboard-session` | Design and mode for this tab |
 | IndexedDB | `gc-dashboard` | Cached API answers |

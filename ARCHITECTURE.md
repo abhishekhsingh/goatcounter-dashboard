@@ -32,6 +32,7 @@ js/
     year.js           calendar year, streaks, goal rings
     sankey.js         referrer-to-page flows
     palette.js        command palette and the shortcut hook
+    rail.js           the numbered section rail and its scroll spy
     recap.js          recap image (SVG to PNG)
 vendor/               Preact, hooks, htm, cobe, phenomenon, with their licences
 fonts/                self-hosted Latin variable fonts, with licences
@@ -50,6 +51,12 @@ scripts/              Node tooling, only for regenerating the world map
 ### The API client
 
 `api.js` sends one request at a time. After each response it waits a short gap (330 ms, or 450 ms until a response proves the rate-limit headers are readable). If `X-Rate-Limit-Remaining` is 1 or less it waits for `X-Rate-Limit-Reset`. A 429 or a network error retries with a back-off; a 401, 403 or 404 does not, and each has its own readable message. Cached answers skip the queue.
+
+### Sites and pages
+
+`App` keeps one `API` client per site address (`pool`) and the open one in `session.api`. About two seconds after the first screen, `listSites` calls `GET /sites` (once per six hours, cached). A site lives at its custom domain, or at `<code>.goatcounter.com`; the same key is used for each. Without the **Read sites** permission the call fails and the list is just the one site. Choosing another site builds its client, asks `/me` for its time zone, and swaps `session.api`. `Dashboard` is keyed by the site address, so it remounts and every card, cache key and filter starts clean.
+
+`narrow(api, ids)` returns a view of a client that adds `include_paths` to statistics requests (except `/stats/hits/{id}`). It shares the queue, rate-limit state and cache with the original. `Dashboard` hands every card the narrowed view while a page is chosen, and because `useApi` depends on its `api` argument, every card refetches by itself.
 
 ### Time zones
 
@@ -83,7 +90,7 @@ Components that must differ by design read the current look from the context: th
 
 ## The demo
 
-`demo.js` builds one hourly model for 760 days: weekday and time-of-day rhythm across several audience time zones, a seasonal swing, per-page growth curves, newsletter pulses, one viral spike tied to a named referrer and page, a page that launches part-way through, and a two-day lull. Every API answer (`total`, `hits`, `toprefs`, countries, browsers and the rest) is computed from that model, so any range, previous period or drill-down stays consistent. It is seeded, so the numbers are the same on every load.
+`demo.js` builds one hourly model for 760 days: weekday and time-of-day rhythm across several audience time zones, a seasonal swing, per-page growth curves, newsletter pulses, one viral spike tied to a named referrer and page, a page that launches part-way through, and a two-day lull. Three imaginary sites (`createDemoSites`) feed the site switcher; each builds on first use from its own seed, rate and page list, and understands `include_paths`. Every API answer (`total`, `hits`, `toprefs`, countries, browsers and the rest) is computed from that model, so any range, previous period or drill-down stays consistent. It is seeded, so the numbers are the same on every load.
 
 ## Globe, map and skyline
 
