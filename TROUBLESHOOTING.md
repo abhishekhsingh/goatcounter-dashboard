@@ -228,7 +228,7 @@ Later visits are faster. Answers are cached in your browser (60 seconds for a ra
 
 ### Persistent rate limit errors (429)
 
-The dashboard stays under GoatCounter's default limit by sending one request at a time and following the rate-limit headers. If you still see 429s:
+The dashboard stays under GoatCounter's per-second limit by sending one request at a time. Hosted GoatCounter also caps a key at 500 requests per hour (observed in the `X-Rate-Limit-Limit` header). A full load is about 22 requests, so many refreshes, site switches and range changes in a short time can reach it. When that happens the dashboard shows a notice with the time it reopens (about the same as the "try again in" text GoatCounter sends) and keeps showing saved numbers. Wait for it, or use fewer refreshes. If you still see 429s:
 
 - **Hosted GoatCounter:** the limit may be shared with other API clients using the same site. Space out your usage.
 - **Self-hosted:** raise the limit with the `-ratelimit` flag on `goatcounter serve`.

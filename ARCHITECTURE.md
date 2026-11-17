@@ -50,7 +50,7 @@ scripts/              Node tooling, only for regenerating the world map
 
 ### The API client
 
-`api.js` sends one request at a time. After each response it waits a short gap (330 ms, or 450 ms until a response proves the rate-limit headers are readable). If `X-Rate-Limit-Remaining` is 1 or less it waits for `X-Rate-Limit-Reset`. A 429 or a network error retries with a back-off; a 401, 403 or 404 does not, and each has its own readable message. Cached answers skip the queue.
+`api.js` sends one request at a time. After each response it waits a short gap (330 ms, or 450 ms until a response proves the rate-limit headers are readable; GoatCounter does not expose them across origins, so in practice the gap stays at 450 ms). A request whose card was replaced meanwhile is skipped when its turn comes (`skip`). A short 429 or a network error retries with a back-off. A long 429 (the hourly cap of 500) is read from its text, "try again in 40m7s": the client sets `blockedUntil`, calls `onLimit` so `Dashboard` can show a notice, and fails further requests at once with the kind `limit` instead of waiting; `useApi` keeps showing a card's saved answer when that happens; a 401, 403 or 404 does not, and each has its own readable message. Cached answers skip the queue.
 
 ### Sites and pages
 

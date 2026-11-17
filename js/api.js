@@ -5,6 +5,16 @@ import { cacheGet, cacheSet, cacheClear } from './cache.js';
 const GAP_MS = 330;          // GoatCounter allows 4 requests per second; preflights add wire traffic
 const SAFE_GAP_MS = 450;     // used until a response proves the headers are readable
 
+// GoatCounter answers a 429 with "rate limited exceeded; try again in 40m7.98s". Browsers cannot read its X-Rate-Limit-*
+// headers across origins (it does not expose them), but the text is readable. Returns seconds, or 0 if there is none.
+export function waitFromText(text) {
+  const m = /try again in ([0-9hmsµ.]+)/i.exec(text || '');
+  if (!m) return 0;
+  let s = 0; for (const [, n, u] of m[1].matchAll(/([0-9.]+)(ms|h|m|s)/g)) s += +n * ({ h: 3600, m: 60, s: 1, ms: 0.001 })[u];
+  return s;
+}
+const LONG_WAIT_S = 20; // a wait longer than this is not worth holding the screen for
+
 export class API {
   constructor(baseURL, apiKey) {
     this.baseURL = baseURL.replace(/\/+$/, '');
@@ -14,6 +24,8 @@ export class API {
     this.chain = Promise.resolve();
     this.demo = false;
     this.tz = null;
+    this.blockedUntil = 0; // set while GoatCounter's hourly cap is closed
+    this.onLimit = null;
   }
 
   _key(endpoint) { return `${this.baseURL}|${endpoint}`; }
@@ -46,20 +58,34 @@ export class API {
       err.message = `Not found (404) at ${url}. ${looksLikeGC ? 'The server answered like GoatCounter, so check the URL.' : 'The answer did not look like GoatCounter, so a proxy, filter or wrong host may be in the way.'}`;
     } else if (res.status === 429) {
       err.kind = 'rate'; err.message = 'Rate limit reached. Retrying.';
-      err.retryAfter = Number(reset) || 1;
+      err.retryAfter = Number(reset) || waitFromText(body) || 1;
     } else {
       err.message = msg || `Request failed (${res.status}).`;
     }
     throw err;
   }
 
-  _queued(endpoint, retries = 2) {
+  // skip() is asked when the request's turn comes: a card that was replaced meanwhile (new range, site or page) never sends it.
+  _queued(endpoint, retries = 2, skip) {
+    const cancelled = () => Object.assign(new Error('cancelled'), { kind: 'cancelled' });
+    const limited = () => {
+      const mins = Math.max(1, Math.ceil((this.blockedUntil - Date.now()) / 60000));
+      return Object.assign(new Error(`GoatCounter's request limit for this key is used up. It resets in about ${mins} minute${mins === 1 ? '' : 's'}.`), { kind: 'limit', until: this.blockedUntil });
+    };
     const run = async () => {
+      if (skip && skip()) throw cancelled();
+      if (this.blockedUntil > Date.now()) throw limited(); // do not keep knocking while the limit is closed
       const wait = this.gap - (Date.now() - this.lastDone);
       if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+      if (skip && skip()) throw cancelled();
       try {
         for (let attempt = 0; ; attempt++) {
           try { return await this._fetch(endpoint); } catch (e) {
+            if (e.kind === 'rate' && e.retryAfter > LONG_WAIT_S) { // the hourly cap: stop, say so, and let the page show saved numbers
+              this.blockedUntil = Date.now() + e.retryAfter * 1000;
+              if (this.onLimit) this.onLimit(this.blockedUntil);
+              throw limited();
+            }
             const transient = e instanceof TypeError || e.kind === 'rate';
             if (!transient || attempt >= retries) throw e;
             await new Promise((r) => setTimeout(r, e.kind === 'rate' ? Math.max(1000, (e.retryAfter || 1) * 1000) : 700 + attempt * 900 + Math.random() * 200));
@@ -73,14 +99,14 @@ export class API {
   }
 
   // ttl: how long a cached answer counts as fresh. onStale(data) is called at once with an older copy, if any.
-  async get(endpoint, { ttl = 60_000, force = false, onStale } = {}) {
+  async get(endpoint, { ttl = 60_000, force = false, onStale, skip } = {}) {
     const key = this._key(endpoint);
     if (!force) {
       const hit = await cacheGet(key);
       if (hit && Date.now() - hit.t < ttl) return hit.data;
       if (hit && onStale) onStale(hit.data);
     }
-    const data = await this._queued(endpoint);
+    const data = await this._queued(endpoint, 2, skip);
     cacheSet(key, { t: Date.now(), data });
     return data;
   }
