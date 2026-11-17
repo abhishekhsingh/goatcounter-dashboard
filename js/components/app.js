@@ -136,12 +136,17 @@ export function App() {
 }
 
 function AppearancePanel({ look, onLook }) {
+  const [bg, setBg] = useState(document.documentElement.dataset.bg || 'flow');
+  const chooseBg = (b) => { document.documentElement.dataset.bg = b; savePref(); setBg(b); };
   const [pinned, setPinned] = useState(() => !!(window.gcPref && window.gcPref.pinned()));
   const toggle = () => { if (!window.gcPref) return; window.gcPref.pin(!window.gcPref.pinned()); setPinned(window.gcPref.pinned()); };
   return html`<div id="appearance" popover class="pop" role="dialog" aria-label="Appearance">
     <fieldset><legend>Design</legend>
       ${[['nova', 'Nova', 'Glass, glow and 3D'], ['classic', 'Classic', 'The original, flat and calm']].map(([k, n, d]) => html`<label key=${k} class=${look === k ? 'on' : ''}><input type="radio" name="look" value=${k} checked=${look === k} onChange=${() => onLook(k)} /><span><b>${n}</b><small>${d}</small></span></label>`)}
     </fieldset>
+    ${look === 'nova' ? html`<fieldset><legend>Background</legend>
+      ${[['flow', 'Flowing', 'A slow, soft drift'], ['still', 'Still', 'One calm frame'], ['off', 'Off', 'Plain gradient']].map(([k, n, d]) => html`<label key=${k} class=${bg === k ? 'on' : ''}><input type="radio" name="bg" value=${k} checked=${bg === k} onChange=${() => chooseBg(k)} /><span><b>${n}</b><small>${d}</small></span></label>`)}
+    </fieldset>` : null}
     <button type="button" class="pin" aria-pressed=${String(pinned)} onClick=${toggle} title="Keep this design and mode for your next visit">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 17v5"/><path d="M9 3h6l-1 6 3 3v2H7v-2l3-3z"/></svg>
       <span>${pinned ? 'Remembered on this device' : 'Remember my choice'}</span>
@@ -195,6 +200,13 @@ function Dashboard({ api: baseApi, demo, sites = [], onSite, switching, theme, l
   useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(''), 2600); return () => clearTimeout(t); }, [toast]);
 
   const series = useMemo(() => (total.data ? buildSeries(total.data, range, now, tz) : []), [total.data, range, now, tz]);
+  // tell the background how busy the traffic on screen is: the point under the cursor, or how hot the recent days run against the peak
+  useEffect(() => {
+    if (!series.length) return;
+    const mx = Math.max(1, ...series.map((p) => p.v)), recent = series.slice(-7), rv = recent.reduce((a, p) => a + p.v, 0) / recent.length;
+    const e = hover !== null && series[hover] ? series[hover].v / mx : 0.25 + 0.6 * Math.min(1, rv / mx);
+    dispatchEvent(new CustomEvent('gc:energy', { detail: e }));
+  }, [series, hover]);
   const prevSeries = useMemo(() => (prevTotal.data ? buildSeries(prevTotal.data, { ...range, from: range.prev.from, to: range.prev.to, live: false }, now, tz) : []), [prevTotal.data, range, now, tz]);
   const hasPrev = prevSeries.length > 0 && prevSeries.filter((p) => p.v > 0).length >= prevSeries.length * 0.6; // too little earlier data makes a comparison meaningless
   const spikes = useMemo(() => (range.hourly ? [] : findSpikes(series)), [series, range]);

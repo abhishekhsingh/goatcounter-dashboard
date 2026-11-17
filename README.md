@@ -9,7 +9,7 @@ An open-source dashboard for [GoatCounter](https://www.goatcounter.com/) analyti
 ## ✨ Features
 
 **Two designs, one engine**
-- **Nova** (default): glass cards, a slow aurora, a glowing gradient line, tilting stat cards and a WebGL globe.
+- **Nova** (default): a quiet, slowly drifting background (a soft shader that leans a little with your traffic and your cursor, and can be set to **Still** or **Off** in Appearance), glass cards that light up under the pointer, a glowing gradient line, tilting stat cards, and a WebGL globe with flowing arcs and pulses.
 - **Classic**: the original flat, calm look, with the same data and the same features.
 - Both come in dark and light. A new visit always opens in **Nova dark**. Your choice lasts for the tab, and you can tick **Remember my choice** to keep it for next time.
 
@@ -23,8 +23,9 @@ An open-source dashboard for [GoatCounter](https://www.goatcounter.com/) analyti
 - **Top pages** with a sparkline each, and a referrer drill-down on click.
 - **Referrers** with link, search and campaign tags, and the pages each one sends traffic to.
 - **Where visitors go next**: a Sankey from your biggest referrers to the pages they land on.
-- **Countries**: a globe (or a flat map) with flags and a region drill-down.
+- **Countries**: a globe with arcs from your top country to the next seven, pulsing rings and labels on the busiest ones (or a flat map), plus flags and a region drill-down.
 - **When your readers show up**: a 3D skyline by weekday and hour (a flat grid in Classic) and a 24-hour clock. Typical values, so one viral day cannot skew the pattern.
+- **Day by day**: a ridgeline of the last six weeks. Every line is one day, drawn like a mountain range with the oldest at the back. Hover a line to read its day, and the whole range leans toward your pointer.
 - **Your year**: a calendar of the last 12 months, streaks, and three goal rings against a monthly goal you can set.
 - **Browsers, systems and devices** as donuts with real logos and a version drill-down.
 - **Languages** and **campaigns** (the campaigns card stays hidden until there is data).
@@ -115,11 +116,13 @@ Measured in Chromium on a throttled phone profile (4x CPU slowdown, 1.6 Mbps, 15
 
 | | Before the rewrite | Now |
 |---|---|---|
-| Transferred on first load | about 970 KB | about 130 KB |
+| Transferred on first load | about 970 KB | about 135 KB |
 | Connect screen usable | 6.4 s | 1.0 s |
 | Total blocking time | about 880 ms | about 115 ms |
 
 The old version compiled React and Recharts in the browser through Babel. The current one uses native ES modules and a 7 KB UI library, with the heavy parts (globe, logos, recap fonts) loaded only when needed.
+
+**The motion is on a budget too.** The Nova background is one soft shader drawn at about 40% resolution and 20 frames a second, moving slowly enough that more would only cost power. It loads after the first screen, keeps moving while you scroll, pauses in a hidden tab, shows one still frame under reduced motion, draws smaller if the first frames are slow, and gives way to plain CSS blobs on low-end devices, when the device asks to save data, or if the graphics context is lost. Classic never loads it. In a software-rendered test browser the total CPU was lower than with the old CSS background. The stat cards' turning edge light now only turns while you are on a card.
 
 ## 📡 API endpoints used
 
@@ -167,7 +170,7 @@ Use an `https://` URL for your GoatCounter site. The connect form adds `https://
 
 ## 🌐 Browser support
 
-You need a browser with ES modules, import maps and the popover attribute: **Chrome or Edge 114+, Firefox 125+, Safari 17+**. The globe needs WebGL and falls back to the flat map without it. The scroll and view-transition effects are optional and degrade quietly.
+You need a browser with ES modules, import maps and the popover attribute: **Chrome or Edge 114+, Firefox 125+, Safari 17+**. The globe needs WebGL and falls back to the flat map without it. The animated background needs WebGL too; without it (or on a low-end device) you get the plain gradient blobs. These are extras that degrade quietly.
 
 **Tested:** Chromium (the engine behind Chrome and Edge) and WebKit (the engine behind Safari), through Playwright, at 13 screen sizes from a 280px foldable to a 2560px ultrawide, in both designs and both modes, with keyboard, palette and recap checks. **Not tested yet:** Firefox, and real phones or real Safari.
 

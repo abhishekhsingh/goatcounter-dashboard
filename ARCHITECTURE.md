@@ -20,7 +20,8 @@ js/
   demo.js             seeded demo site that answers like the real API
   countries.js        country names to ISO codes, flags, lazy map loader
   icons.js            browser and system logos, device glyphs (loaded lazily)
-  fx.js               pointer effects (3D tilt) and CSS variable helpers
+  ambient.js          Nova's living background: one fullscreen shader, tuned to stay cheap
+  fx.js               pointer effects (3D tilt, cursor glow), scroll hold and CSS variable helpers
   components/
     app.js            App (connect, session), Dashboard (state, layout), Appearance panel
     common.js         useApi hook, animated number, skeletons, sparkline, delta chip
@@ -29,6 +30,7 @@ js/
     cards.js          stat cards, ranked lists, top pages, countries (globe and map)
     breakdown.js      donut cards with logos
     skyline.js        3D skyline, flat heat grid, 24-hour clock
+    ridgeline.js      day-by-day ridgeline (one line per day, drawn as a mountain range)
     year.js           calendar year, streaks, goal rings
     sankey.js         referrer-to-page flows
     palette.js        command palette and the shortcut hook
@@ -83,7 +85,7 @@ Components that must differ by design read the current look from the context: th
 - The first screen needs five requests (`/me`, current and previous `total`, `hits`, `toprefs`). Every lower card uses `useInView` and loads when it scrolls near the viewport.
 - All modules in the first load are listed as `modulepreload`, so the browser fetches them in parallel instead of discovering them one import at a time. **The import map must come before the `modulepreload` links**, or bare imports fail.
 - Vendor files end in `.js`, not `.mjs`, because some servers send `.mjs` with the wrong MIME type and browsers refuse it.
-- Heavy code loads on demand: `cobe` (globe), `icons.js` (logos), `demo.js` (the demo), `assets/world-map.js` (map paths), and the recap fonts.
+- Heavy code loads on demand: `ambient.js` (background), `cobe` (globe), `icons.js` (logos), `demo.js` (the demo), `assets/world-map.js` (map paths), and the recap fonts.
 - The static splash in `index.html` uses the system font on purpose. If it used the web fonts, their download would compete with the app's scripts on a slow link.
 - Animation work pauses offscreen and when the tab is hidden, and every animation respects `prefers-reduced-motion`.
 - Budget: about 200 KB gzip for the first screen. Current figures are in the README.
@@ -94,9 +96,17 @@ Components that must differ by design read the current look from the context: th
 
 ## Globe, map and skyline
 
-- The globe uses cobe. Marker positions come from the centre of each country's largest shape in `assets/world-map.js` (equirectangular, latitude 84 down to -58). It starts facing your top country (cobe centres on longitude -90 minus `phi`), is destroyed when scrolled away or when the design changes, and falls back to the flat map if WebGL fails.
+- The globe uses cobe 0.6.3 (with phenomenon, its render loop). Marker positions come from the centre of each country's largest shape in `assets/world-map.js` (equirectangular, latitude 84 down to -58). It starts facing your top country (cobe centres on longitude -90 minus `phi`), is destroyed when scrolled away or when the design changes, and falls back to the flat map if WebGL fails. The canvas is created inside a `.globe-box` that Preact never touches, with a second, flat canvas (`.globe-over`) laid over it. Everything that moves on the globe is drawn on that overlay from cobe's own rotation (`unit` and `turn` in `cards.js`: spin by `phi`, tilt by `theta`, looking down z, checked against real renders to about 1% of the globe's width): arcs from the top country to the next seven that fly out one after another, a small dot that keeps travelling along each, pulse rings on the seven busiest countries, and name labels on the three busiest while they face you. It needs no special browser support and costs almost nothing, as long as it never uses canvas shadows: a shadow blur is repainted on the CPU every frame, and an earlier version that glowed the arcs that way took 50 to 66 ms a frame at 2x on an M1 Pro. The glows are small pre-drawn sprites and two wide, faint strokes under a thin bright one. The sphere turns at full rate and the overlay is redrawn every other frame. The globe is created when its own box is within 40 px of the screen and destroyed when it leaves. cobe 2 has arcs and CSS anchors built in, but in a WebKit test its per-frame update blocked for tens of milliseconds, so the page lost most of its frames whenever the globe was on screen. Do not upgrade to it without measuring that.
 - The flat map shades paths by the square root of visitors and shares its tooltip and hover logic with the list.
 - The skyline and the clock use typical values (medians per weekday and hour over 90 days), so one viral day cannot rewrite the pattern.
+
+## Motion
+
+- **Background** (`ambient.js`): one triangle and a fragment shader (soft warped noise, three octaves, no fine detail) in a `#flow` canvas inside `.aurora`. It is meant to be quiet: low contrast, slow, and capped well under the brightness of the old blobs. The Appearance panel's **Background** setting (`data-bg` on `<html>`, saved with the design and mode) picks Flowing, Still (one frame) or Off (the plain CSS gradient, not moving). It reads its palette from the design tokens, so dark, light and a new design need no shader change. `Dashboard` sends one number through the `gc:energy` event (how hot recent days run against the peak, or the value under the chart cursor). Time is a running total (`phase`) that only grows by the length of a drawn frame times a speed, so a change of energy changes the speed from then on and never moves the picture, and a pause never makes it jump. (An earlier version multiplied the clock by the energy, which made the background lurch whenever the pointer moved over the chart.) The cursor nudges the flow, and the hour of the day shifts it slightly. It is drawn at about 40% size (never more than 960 px on the long edge), upscaled by CSS, at 20 fps. It starts 900 ms after the first screen, then at idle. It keeps moving while the page scrolls (measured: it costs no frames), stops in a hidden tab, draws one still frame under reduced motion, halves its size if the first 45 frames average over 68 ms, and drops out for the CSS blobs if that is still too slow, if the context is lost, on `saveData`, and on two cores or 2 GB of memory or less. Intensity is capped so body text keeps at least the contrast it had over the old blobs.
+- **Cards**: `installPointerFX` tells the card under a mouse where the pointer is, and `nova.css` draws a soft glow and a bright edge thread from it. Both are CSS variables on one card at a time, and neither runs for touch or reduced motion. The stat strip's turning edge light animates a registered property (a style pass and repaint per frame), so it only turns while a card is hovered or focused. The first screen rises in with a short stagger using `translate` and `scale`, so it does not fight the tilt's `transform`. Cards do not animate as they scroll in: animating a card that has `backdrop-filter` makes the browser redo the blur every frame, which is how a page loses smoothness. While the shader runs the glass blur is lighter (9px).
+- **Ridgeline** (`ridgeline.js`): canvas 2D. Each of up to 42 days is a smoothed 24-point line, drawn back to front with an opaque fill so nearer days hide farther ones, and narrower at the back for depth. Heights share one scale set by the 95th percentile of all hours, and a viral day may rise to 1.6 times it. The lean toward the pointer is a CSS transform on the canvas (compositor only). It redraws only while it animates in or while a line is hovered.
+- Every loop checks `prefers-reduced-motion`, and the browser pauses them in a hidden tab.
+- On touch screens, `-webkit-user-select: none` and `-webkit-touch-callout: none` on SVG and canvas charts stop a long press from selecting text; rows and numbers stay selectable.
 
 ## Logos
 

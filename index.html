@@ -15,11 +15,13 @@
   try { pref = JSON.parse(sessionStorage.getItem('gc-dashboard-session') || localStorage.getItem('gc-dashboard-pref') || '{}') || {}; } catch (e) {}
   if (pref.t === 'light') t = 'light';
   if (pref.l === 'classic') look = 'classic';
+  var bg = pref.b === 'still' || pref.b === 'off' ? pref.b : 'flow';
   var d = document.documentElement;
   d.setAttribute('data-theme', t);
   d.setAttribute('data-look', look);
+  d.setAttribute('data-bg', bg);
   window.gcPref = {
-    now: function () { return JSON.stringify({ l: d.getAttribute('data-look'), t: d.getAttribute('data-theme') }); },
+    now: function () { return JSON.stringify({ l: d.getAttribute('data-look'), t: d.getAttribute('data-theme'), b: d.getAttribute('data-bg') }); },
     save: function () { try { var v = this.now(); sessionStorage.setItem('gc-dashboard-session', v); if (localStorage.getItem('gc-dashboard-pref')) localStorage.setItem('gc-dashboard-pref', v); } catch (e) {} },
     pinned: function () { try { return !!localStorage.getItem('gc-dashboard-pref'); } catch (e) { return false; } },
     pin: function (on) { try { if (on) localStorage.setItem('gc-dashboard-pref', this.now()); else localStorage.removeItem('gc-dashboard-pref'); } catch (e) {} }
@@ -47,6 +49,7 @@
 <link rel="modulepreload" href="js/countries.js">
 <link rel="modulepreload" href="js/components/breakdown.js">
 <link rel="modulepreload" href="js/components/skyline.js">
+<link rel="modulepreload" href="js/components/ridgeline.js">
 <link rel="modulepreload" href="js/api.js">
 <link rel="modulepreload" href="js/cache.js">
 <link rel="modulepreload" href="js/util.js">

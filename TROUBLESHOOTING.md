@@ -226,6 +226,14 @@ After you connect, the first screen needs five requests: a connection check (`/m
 
 Later visits are faster. Answers are cached in your browser (60 seconds for a range that includes today, 6 hours for older ranges), and an older copy is shown immediately while a fresh one loads.
 
+### The Nova background is a plain gradient
+
+The flowing background is optional. It switches itself off, and the plain gradient blobs stay, when WebGL is missing or the graphics context is lost, when the browser asks to save data, on a device with two cores or 2 GB of memory or less, and when its first frames are too slow even after drawing smaller. It also shows a single still frame when your system asks for reduced motion, and it is never loaded in the Classic design. If you find it distracting, open **Appearance** and set **Background** to **Still** or **Off**.
+
+### The page is a little jerky on an older device
+
+The background and the globe keep moving while you scroll. On an older machine, open **Appearance** and set **Background** to **Still** or **Off**, or switch to **Classic**, which has no background shader, no glass blur and no globe.
+
 ### Persistent rate limit errors (429)
 
 The dashboard stays under GoatCounter's per-second limit by sending one request at a time. Hosted GoatCounter also caps a key at 500 requests per hour (observed in the `X-Rate-Limit-Limit` header). A full load is about 22 requests, so many refreshes, site switches and range changes in a short time can reach it. When that happens the dashboard shows a notice with the time it reopens (about the same as the "try again in" text GoatCounter sends) and keeps showing saved numbers. Wait for it, or use fewer refreshes. If you still see 429s:

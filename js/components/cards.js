@@ -101,6 +101,10 @@ export function StatStrip({ cur, prev, avg, avgPrev, peak, topPage, topRef, seri
 export { schemeLabel };
 
 
+// Where a point on the globe lands on screen. This is cobe's own rotation: spin by phi, tilt by theta, looking down the z axis.
+const unit = ([lat, lon]) => { const la = (lat * Math.PI) / 180, lo = (lon * Math.PI) / 180 - Math.PI; return [-Math.cos(la) * Math.cos(lo), Math.sin(la), Math.cos(la) * Math.sin(lo)]; };
+const turn = (v, phi, theta) => { const c = Math.cos(theta), e = Math.sin(theta), d = Math.cos(phi), f = Math.sin(phi); return [v[0] * d + v[2] * f, v[0] * f * e + v[1] * c - v[2] * d * e, -v[0] * f * c + v[1] * e + v[2] * d * c]; };
+
 // Centre of each country's largest shape, read from the map paths (equirectangular, latitude 84 down to -58).
 function centroids(paths) {
   const out = {};
@@ -127,7 +131,7 @@ export function CountriesCard({ api, range, ttl, look, theme }) {
   const [tip, setTip] = useState(null);
   const [open, setOpen] = useState(null);
   const [all, setAll] = useState(false);
-  const wrap = useRef(null), cv = useRef(null);
+  const wrap = useRef(null), box = useRef(null);
   useEffect(() => setView(look === 'nova' ? 'globe' : 'map'), [look]);
   useEffect(() => { if (seen) loadWorldMap().then(() => setMapReady(true)); }, [seen]);
   const { data, error, retry } = useApi(api, `/api/v0/stats/locations?${q({ start: range.start, end: range.end, limit: 100 })}`, { ttl, enabled: seen });
@@ -144,34 +148,84 @@ export function CountriesCard({ api, range, ttl, look, theme }) {
   const paths = typeof window !== 'undefined' ? window.WORLD_MAP_PATHS : null;
   const cent = useMemo(() => (mapReady && paths ? centroids(paths) : null), [mapReady]);
 
-  // the globe: created when visible, destroyed when scrolled away or when the look changes
+  // the globe: created when visible, destroyed when scrolled away or when the look changes.
+  // cobe draws the sphere and its markers. Everything that moves on top of it (arcs, travelling dots, pulse rings, labels) is drawn
+  // here on a second, flat canvas from the same rotation, so it costs almost nothing and needs no special browser support.
   useEffect(() => {
-    if (view !== 'globe' || !mapReady || !cent || !rows.length || !onScreen || !cv.current) return;
-    // start facing the top country: cobe centres on longitude -90 - phi (degrees)
-    const top = [...byCode.entries()].filter(([k]) => cent[k]).sort((a, b) => b[1].count - a[1].count)[0];
-    let dead = false, g = null, phi = top ? (-(cent[top[0]][1] + 90) * Math.PI) / 180 : 0.6, drag = null, off = 0;
-    const canvas = cv.current;
+    if (view !== 'globe' || !mapReady || !cent || !rows.length || !onScreen || !box.current) return;
+    const ranked = [...byCode.entries()].filter(([k]) => cent[k]).sort((a, b) => b[1].count - a[1].count);
+    const top = ranked[0];
+    const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    let dead = false, g = null, phi = top ? (-(cent[top[0]][1] + 90) * Math.PI) / 180 : 0.6, drag = null, off = 0, dirty = true;
+    const host = box.current, canvas = document.createElement('canvas'), over = document.createElement('canvas');
+    canvas.id = 'globe'; canvas.setAttribute('role', 'img'); canvas.setAttribute('aria-label', 'Globe with markers for visitor countries. The list beside it has the same data.');
+    over.className = 'globe-over'; over.setAttribute('aria-hidden', 'true');
+    host.replaceChildren(canvas, over);
     import('cobe').then(({ default: createGlobe }) => {
       if (dead) return;
       try {
-        const size = canvas.clientWidth || 480, dpr = Math.min(2, devicePixelRatio || 1), light = theme === 'light';
-        canvas.width = canvas.height = Math.round(size * dpr);
-        const markers = [...byCode.entries()].filter(([c]) => cent[c]).map(([c, v]) => ({ location: cent[c], size: 0.035 + 0.1 * Math.sqrt(v.count / maxMap) }));
+        const size = host.clientWidth || 480, dpr = Math.min(2, devicePixelRatio || 1), light = theme === 'light', theta = 0.3;
+        canvas.width = canvas.height = over.width = over.height = Math.round(size * dpr);
+        const markers = ranked.map(([c, v]) => ({ location: cent[c], size: 0.035 + 0.1 * Math.sqrt(v.count / maxMap) }));
         const base = hexToRgb(cssVar(light ? '--bg-2' : '--surface-2'));
-        g = createGlobe(canvas, { devicePixelRatio: dpr, width: canvas.width, height: canvas.height, phi, theta: 0.3, dark: light ? 0 : 1, diffuse: light ? 1.2 : 1.6, mapSamples: 22000, mapBrightness: light ? 2.4 : 8, baseColor: light ? base : base.map((c) => c * 1.8 + 0.1), markerColor: hexToRgb(cssVar('--accent')), glowColor: light ? [0.85, 0.82, 1] : hexToRgb(cssVar('--accent-2')).map((c) => c * 0.8), markers, onRender: (s) => { if (drag === null && !matchMedia('(prefers-reduced-motion: reduce)').matches) phi += 0.0045; s.phi = phi + off; } });
+        const accent = cssVar('--accent'), cool = cssVar(light ? '--accent' : '--accent-2'), hot = cssVar('--hot'), panel = cssVar('--surface');
+        const lit = ranked.slice(0, 7), t0 = performance.now();
+        const arcs = ranked.slice(1, 8).map(([c], i) => ({ a: unit(cent[top[0]]), b: unit(cent[c]), start: 500 + i * 380 }));
+        const ctx = over.getContext('2d');
+        // Glows are small pre-drawn images and layered strokes, never canvas shadows: a canvas shadow blur is repainted by the CPU on every frame and cost 50 ms a frame at 2x.
+        const rgb = (h, a) => { const [r, g2, b] = hexToRgb(h); return `rgba(${Math.round(r * 255)},${Math.round(g2 * 255)},${Math.round(b * 255)},${a})`; };
+        const sprite = (col, r) => { const c = document.createElement('canvas'); c.width = c.height = Math.ceil(r * 2 * dpr); const x = c.getContext('2d'), m = c.width / 2, gr = x.createRadialGradient(m, m, 0, m, m, m); gr.addColorStop(0, rgb(col, 0.9)); gr.addColorStop(0.3, rgb(col, 0.4)); gr.addColorStop(1, rgb(col, 0)); x.fillStyle = gr; x.fillRect(0, 0, c.width, c.height); return { c, r }; };
+        const glow = { cool: sprite(cool, 11), hot: sprite(hot, 17) };
+        const blob = (sp, x, y) => ctx.drawImage(sp.c, x - sp.r, y - sp.r, sp.r * 2, sp.r * 2);
+        const path = (pts, from, to) => { ctx.beginPath(); let pen = false; for (let i = from; i <= to; i++) { const q = pts[i]; if (!q.seen) { pen = false; continue; } if (!pen) { ctx.moveTo(q.x, q.y); pen = true; } else ctx.lineTo(q.x, q.y); } };
+        let tick = 0;
+        const drawOver = (now, ph) => {
+          const t = reduced ? 1e6 : now - t0, R = size * 0.4, cx = size / 2;
+          ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, size, size);
+          const at = (v, k = 1) => { const r = turn(v, ph, theta); return { x: cx + R * k * r[0], y: cx - R * k * r[1], z: r[2], seen: r[2] > -0.02 || r[0] * r[0] + r[1] * r[1] > 1 }; };
+          ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+          for (const arc of arcs) { // each arc flies out from the top country, then a small dot keeps travelling along it
+            const grow = reduced ? 1 : Math.min(1, Math.max(0, (t - arc.start) / 1100)); if (!grow) continue;
+            const w = Math.acos(Math.max(-1, Math.min(1, arc.a[0] * arc.b[0] + arc.a[1] * arc.b[1] + arc.a[2] * arc.b[2]))), lift = 0.1 + 0.2 * (w / Math.PI), N = 40, pts = [];
+            for (let i = 0; i <= N; i++) { const u = i / N, so = Math.sin(w) || 1, ka = Math.sin((1 - u) * w) / so, kb = Math.sin(u * w) / so, v = [ka * arc.a[0] + kb * arc.b[0], ka * arc.a[1] + kb * arc.b[1], ka * arc.a[2] + kb * arc.b[2]]; pts.push(at(v, 1 + lift * Math.sin(Math.PI * u))); }
+            const end = Math.round(N * grow);
+            ctx.lineWidth = 7; ctx.strokeStyle = rgb(cool, 0.07); path(pts, 0, end); ctx.stroke(); // soft halo
+            ctx.lineWidth = 3.5; ctx.strokeStyle = rgb(cool, 0.15); path(pts, 0, end); ctx.stroke();
+            ctx.lineWidth = 1.4; // the line itself brightens toward its far end, in four steps
+            for (let k = 0; k < 4; k++) { const f = Math.floor((end * k) / 4), t2 = Math.min(end, Math.floor((end * (k + 1)) / 4) + 1); if (t2 <= f) continue; ctx.strokeStyle = rgb(cool, 0.3 + 0.2 * k); path(pts, f, t2); ctx.stroke(); }
+            const head = grow < 1 ? pts[end] : (reduced ? null : pts[Math.floor(((t - arc.start) / 2600) % 1 * N)]);
+            if (head && head.seen) { blob(glow.cool, head.x, head.y); ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(head.x, head.y, 2.2, 0, 7); ctx.fill(); }
+          }
+          lit.forEach(([c, v], i) => { // pulse rings on the busiest countries, and a bright centre on the top one
+            const p = at(unit(cent[c])); if (p.z < 0.08) return; const vis = Math.min(1, (p.z - 0.08) / 0.3), col = i === 0 ? hot : cool;
+            ctx.strokeStyle = col; ctx.lineWidth = 1.5;
+            for (const off2 of [0, 0.5]) { const ph2 = reduced ? 0.35 : ((t / 3200 + i * 0.17 + off2) % 1); ctx.globalAlpha = Math.pow(1 - ph2, 1.6) * 0.8 * vis; ctx.beginPath(); ctx.arc(p.x, p.y, 4 + 20 * ph2, 0, 7); ctx.stroke(); }
+            if (i === 0) { ctx.globalAlpha = vis; blob(glow.hot, p.x, p.y); ctx.fillStyle = hot; ctx.beginPath(); ctx.arc(p.x, p.y, 5, 0, 7); ctx.fill(); }
+            ctx.globalAlpha = 1;
+          });
+          ctx.font = '600 11.5px "Space Grotesk", system-ui, sans-serif'; ctx.textBaseline = 'middle';
+          lit.slice(0, 3).forEach(([c, v]) => { // names beside the three busiest, only while they face you
+            const p = at(unit(cent[c])); if (p.z < 0.3) return; const label = `${flagFor(v.name)} ${v.name}`, w = ctx.measureText(label).width + 18, h = 22, x = p.x + 12, y = p.y - h / 2;
+            ctx.globalAlpha = Math.min(1, (p.z - 0.3) / 0.3); ctx.fillStyle = panel; ctx.globalAlpha *= 0.82; ctx.beginPath(); ctx.roundRect(x, y, w, h, 11); ctx.fill();
+            ctx.globalAlpha = Math.min(1, (p.z - 0.3) / 0.3); ctx.strokeStyle = accent; ctx.lineWidth = 1; ctx.stroke();
+            ctx.fillStyle = light ? '#1b1535' : '#ece8ff'; ctx.fillText(label, x + 9, p.y + 0.5); ctx.globalAlpha = 1;
+          });
+        };
+        g = createGlobe(canvas, { devicePixelRatio: dpr, width: canvas.width, height: canvas.height, phi, theta, dark: light ? 0 : 1, diffuse: light ? 1.2 : 1.6, mapSamples: 22000, mapBrightness: light ? 2.4 : 8, baseColor: light ? base : base.map((c) => c * 1.8 + 0.1), markerColor: hexToRgb(cssVar('--accent')), glowColor: light ? [0.85, 0.82, 1] : hexToRgb(cssVar('--accent-2')).map((c) => c * 0.8), markers,
+          onRender: (st) => { if (drag === null && !reduced) phi += 0.0045; st.phi = phi + off; /* the sphere turns at full rate, the overlay at half: it moves slowly and costs less */ if ((!reduced && (tick++ & 1) === 0) || dirty) { drawOver(performance.now(), phi + off); dirty = false; } } });
         const down = (e) => { drag = e.clientX; canvas.setPointerCapture(e.pointerId); canvas.style.cursor = 'grabbing'; };
-        const move = (e) => { if (drag !== null) { off += (e.clientX - drag) * 0.006; drag = e.clientX; } };
+        const move = (e) => { if (drag !== null) { off += (e.clientX - drag) * 0.006; drag = e.clientX; dirty = true; } };
         const up = () => { drag = null; canvas.style.cursor = 'grab'; };
         canvas.addEventListener('pointerdown', down); canvas.addEventListener('pointermove', move); canvas.addEventListener('pointerup', up);
         canvas._gcCleanup = () => { canvas.removeEventListener('pointerdown', down); canvas.removeEventListener('pointermove', move); canvas.removeEventListener('pointerup', up); };
       } catch (e) { setView('map'); }
     }).catch(() => setView('map'));
-    return () => { dead = true; if (g) g.destroy(); if (canvas._gcCleanup) canvas._gcCleanup(); };
+    return () => { dead = true; if (g) g.destroy(); if (canvas._gcCleanup) canvas._gcCleanup(); host.replaceChildren(); };
   }, [view, mapReady, cent, rows, onScreen, theme, look]);
   useEffect(() => {
     if (!wrap.current || typeof IntersectionObserver === 'undefined') return;
-    const io = new IntersectionObserver((es) => setOnScreen(es[0].isIntersecting), { rootMargin: '100px' });
-    io.observe(wrap.current);
+    const io = new IntersectionObserver((es) => setOnScreen(es[0].isIntersecting), { rootMargin: '40px' });
+    io.observe(view === 'globe' && box.current ? box.current : wrap.current); // the globe itself, so it stops as soon as it is gone
     return () => io.disconnect();
   }, [data, view]);
 
@@ -189,7 +243,7 @@ export function CountriesCard({ api, range, ttl, look, theme }) {
     <div class="geo">
       <div class="map-wrap" ref=${wrap}>
         ${look === 'nova' ? html`<div class="seg-tabs" role="group" aria-label="Map style"><button type="button" aria-pressed=${String(view === 'globe')} onClick=${() => setView('globe')}>Globe</button><button type="button" aria-pressed=${String(view === 'map')} onClick=${() => setView('map')}>Map</button></div>` : null}
-        ${view === 'globe' ? html`<canvas id="globe" ref=${cv} role="img" aria-label="Globe with markers for visitor countries. The list beside it has the same data."></canvas>` :
+        ${view === 'globe' ? html`<div class="globe-box" ref=${box}></div><p class="globe-note" aria-hidden="true">Arcs link your top country to the next seven. Drag to turn the globe.</p>` :
           paths ? html`<svg class="map" viewBox=${window.WORLD_MAP_VIEWBOX || '0 0 1000 500'} preserveAspectRatio="xMidYMid meet" role="img" aria-label="World map shaded by visitors" onMouseMove=${onMove} onMouseLeave=${() => { setTip(null); setHot(null); }}>
           ${Object.keys(paths).map((code) => { const e = byCode.get(code); return html`<path key=${code} d=${paths[code]} data-code=${code} data-has=${e ? '1' : '0'} class=${code === hot ? 'hot' : ''} fill-opacity=${e ? 0.22 + 0.78 * Math.sqrt(e.count / maxMap) : 1} />`; })}</svg>` : html`<${Skeleton} h=${260} r="12px" />`}
         ${tip && view === 'map' ? html`<div class="tip" style=${{ left: Math.max(4, Math.min(tip.x + 14, (wrap.current ? wrap.current.clientWidth : 800) - 190)) + 'px', top: Math.max(4, tip.y - 56) + 'px', minWidth: '150px' }}><b>${flagFor(tip.name)} ${tip.name}</b><div class="v">${fmtFull(tip.count)}</div><div class="p">${shareOf(tip.count, total).toFixed(1)}% of visitors</div></div>` : null}
