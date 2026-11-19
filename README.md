@@ -2,7 +2,7 @@
 
 A fast, private dashboard for [GoatCounter](https://www.goatcounter.com/) analytics. It runs entirely in your browser: no server, no build step, no account, no tracking.
 
-🔗 **Live**: [abhishekhsingh.github.io/goatcounter-dashboard](https://abhishekhsingh.github.io/goatcounter-dashboard) (press **Try demo**, no key needed)
+🔗 **Live**: [abhishekhsingh.github.io/goatcounter-dashboard](https://abhishekhsingh.github.io/goatcounter-dashboard/) (press **Try demo**, no key needed)
 
 ![The dashboard in the Nova design](assets/screenshots/overview.jpg)
 
@@ -53,7 +53,7 @@ Appearance, the day and night switch, and the footer:
 
 ## 🚀 Quick start
 
-1. Open **[abhishekhsingh.github.io/goatcounter-dashboard](https://abhishekhsingh.github.io/goatcounter-dashboard)**.
+1. Open **[abhishekhsingh.github.io/goatcounter-dashboard](https://abhishekhsingh.github.io/goatcounter-dashboard/)**.
 2. Enter your GoatCounter URL (for example `https://yoursite.goatcounter.com`) and an API key, or press **Try demo**.
 
 ## 🔑 Getting a GoatCounter API key
